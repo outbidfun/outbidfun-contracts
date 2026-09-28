@@ -1,0 +1,10 @@
+{
+  "PonsBuyback": {
+    "buyback": "",
+    "outbidToken": "",
+    "pairToken": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+    "routeFee": 500,
+    "routeTickSpacing": 10,
+    "routeHooks": "0x0000000000000000000000000000000000000000"
+  }
+}

@@ -1,0 +1,17 @@
+node_modules
+.env
+.env.local
+.DS_Store
+
+# Hardhat
+artifacts/
+cache/
+coverage/
+coverage.json
+typechain/
+typechain-types/
+
+# Ignition: local runs, and the compiler output a deployment copies
+ignition/deployments/chain-31337/
+ignition/deployments/*/artifacts/
+ignition/deployments/*/build-info/

@@ -1,0 +1,23 @@
+{
+  "note": "Robinhood Chain testnet (46630). It has no WETH, USDG or PONS of its own, so the WETH9 and TestToken modules stand in; Uniswap's V4 PoolManager is at the same address as on mainnet.",
+  "UniswapV3": {
+    "weth": "0xe7AB0F13C070632EFD76cb90F6BbFBe581b22Da2"
+  },
+  "Launchpad": {
+    "weth": "0xe7AB0F13C070632EFD76cb90F6BbFBe581b22Da2",
+    "wethCap": "4200000000000000000",
+    "poolFee": 10000
+  },
+  "Outbidfun": {
+    "usdg": "0x836a770fB5f88E19282D2Dc7342d81b2B6fA6178",
+    "weth": "0xe7AB0F13C070632EFD76cb90F6BbFBe581b22Da2",
+    "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951"
+  },
+  "OutbidEconomy": {
+    "weth": "0xe7AB0F13C070632EFD76cb90F6BbFBe581b22Da2"
+  },
+  "SwapExecutor": {
+    "weth": "0xe7AB0F13C070632EFD76cb90F6BbFBe581b22Da2",
+    "platformRouter": "0x4295f435208c4D161681426Cd586f454961CFD05"
+  }
+}

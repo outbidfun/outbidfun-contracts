@@ -1,0 +1,4 @@
+allowBuilds:
+  # Hardhat's signing dependencies: each builds its native binding on install, with a JS fallback.
+  keccak: true
+  secp256k1: true

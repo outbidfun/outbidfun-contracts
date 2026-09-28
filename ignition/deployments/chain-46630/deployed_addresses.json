@@ -1,0 +1,16 @@
+{
+  "Launchpad#FeeEscrow": "0x020db5b426a8E8cb30c21dEdEd9b5991E94A2A87",
+  "Launchpad#Formula": "0x67b2125AD581FD12E562386f9151F27f8C4142E5",
+  "Launchpad#HolderRewards": "0x103db871e25732272f035714ebfE37dC6831Bd28",
+  "Outbidfun#Treasury": "0xe5d9Bb7231792591F92B6538622691E65b80cD5b",
+  "UniswapV3#UniswapV3Factory": "0x6F72dD1C961Bc7883921d6D6aE914264AB4CE363",
+  "Launchpad#CoinCreator": "0x4Db20d13fB8016632164f1381317e7Cfc51C1ffF",
+  "Outbidfun#OutbidMarket": "0xB2D1E7c1b9D7Aa632cD73984D3fb1526Bc5EA235",
+  "UniswapV3#QuoterV2": "0x3C1520e975910f84D94048E863Ca2176D70588f2",
+  "UniswapV3#SwapRouter": "0x4295f435208c4D161681426Cd586f454961CFD05",
+  "Launchpad#CoinListingManager": "0xe54e5d8Fe57a6a4bc49777B89b43bE57C57CE28d",
+  "Launchpad#LiquidityManager": "0xdb3b493D371103847D189cbEf6866Af3e374bfC9",
+  "Launchpad#CoinFactory": "0xCB4F4Efa81fc954dB79936C79A580Fce3fd38C62",
+  "OutbidEconomy#OutbidBuyback": "0x0e4ecbc6867cAAC2D15E82927EaF9754230ba15c",
+  "OutbidEconomy#RevenueRouter": "0x5F4f566cd20A140A7902Cb4b8d77D09eB0001D92"
+}

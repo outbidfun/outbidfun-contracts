@@ -1,0 +1,9 @@
+{
+  "note": "Lists the testnet's stand-in USDG (TestToken module) on the testnet CoinFactory, graduating at 14,000 USDG like the real one on mainnet.",
+  "QuoteAsset": {
+    "coinFactory": "0xCB4F4Efa81fc954dB79936C79A580Fce3fd38C62",
+    "token": "0x836a770fB5f88E19282D2Dc7342d81b2B6fA6178",
+    "cap": "14000000000",
+    "enabled": true
+  }
+}

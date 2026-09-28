@@ -1,0 +1,8 @@
+{
+  "QuoteAsset": {
+    "coinFactory": "0xDadC43dbf60eA5d4598C39500Ede46De6A14c0d0",
+    "token": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+    "cap": "14000000000",
+    "enabled": true
+  }
+}

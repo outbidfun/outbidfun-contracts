@@ -1,0 +1,9 @@
+{
+  "note": "The AMM routers the SwapExecutor on Robinhood Chain mainnet may call, and how: 1 is v3-periphery's SwapRouter shape (deadline in the params), 2 is SwapRouter02's. Each is the address the AMM itself publishes, the same as apps/web/src/constants/swapProviders.ts; scripts/executor-venues.ts checks each on chain before listing it.",
+  "venues": [
+    { "name": "Uniswap", "router": "0xcaf681a66d020601342297493863e78c959e5cb2", "venue": 2 },
+    { "name": "PancakeSwap", "router": "0x13f4EA83D0bd40E75C8222255bc855a974568Dd4", "venue": 2 },
+    { "name": "Ramses", "router": "0xFCBBe2Af83F94e7E2a9C35a535B3A04719aFD2Ae", "venue": 1 },
+    { "name": "up33", "router": "0xC062b870E813fcA720f1e002c234369Ab3aB9415", "venue": 1 }
+  ]
+}

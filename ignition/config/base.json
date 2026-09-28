@@ -1,0 +1,33 @@
+{
+  "UniswapV3": {
+    "weth": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73"
+  },
+  "Launchpad": {
+    "weth": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+    "wethCap": "4200000000000000000",
+    "poolFee": 10000
+  },
+  "Outbidfun": {
+    "usdg": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+    "weth": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+    "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951"
+  },
+  "OutbidEconomy": {
+    "weth": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73"
+  },
+  "SwapExecutor": {
+    "weth": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+    "platformRouter": "0xf5f476d0F06f20E5932Fbf599FA3C8be53081a9B"
+  },
+  "OutbidMarketV2": {
+    "usdg": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+    "weth": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+    "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+    "buyback": "0x9FBb9614bA47F2FD7ECFaa16880B535034a4eEF5",
+    "treasury": "0xE693C039cc91F8dbe64586245565388e2e44C0A4",
+    "registry": "0xDadC43dbf60eA5d4598C39500Ede46De6A14c0d0",
+    "executor": "0x4Db20d13fB8016632164f1381317e7Cfc51C1ffF",
+    "minBid": "1000000000000000000",
+    "outbidIncrement": "5000000000000000000"
+  }
+}

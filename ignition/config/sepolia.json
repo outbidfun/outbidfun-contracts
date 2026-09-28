@@ -1,0 +1,15 @@
+{
+  "UniswapV3": {
+    "weth": "0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14"
+  },
+  "Launchpad": {
+    "weth": "0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14",
+    "wethCap": "4200000000000000000",
+    "poolFee": 10000
+  },
+  "Outbidfun": {
+    "usdg": "",
+    "weth": "0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14",
+    "poolManager": "0x0000000000000000000000000000000000000000"
+  }
+}

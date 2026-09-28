@@ -1,0 +1,8 @@
+{
+  "TestToken": {
+    "name": "Global Dollar",
+    "symbol": "USDG",
+    "decimals": 6,
+    "supply": "1000000000000"
+  }
+}
