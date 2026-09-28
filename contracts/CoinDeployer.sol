@@ -79,7 +79,6 @@ contract CoinDeployer is ICoinDeployer, Ownable {
     }
 
     uint32 public override allMemecoinsCount;
-    address public immutable formula;
     address public immutable listingManager;
     address public immutable feeEscrow;
     /// @notice The contract that holds Coin's creation code and deploys every coin. Bound to
@@ -101,13 +100,20 @@ contract CoinDeployer is ICoinDeployer, Ownable {
     /// @notice Wallets a launch named as exempt from its snipe tax, beyond the creator's own.
     mapping(address memecoin => mapping(address account => bool)) public override isSnipeExempt;
 
-    uint16 powerN = 6;
-    uint16 powerD = 5;
-    /// @dev Every curve sells this many coins by the time it graduates, whatever it is priced in.
-    ///      Graduation mints 1 / 2.2 of it into the pool — the reserve at the curve's closing
-    ///      price, which is 2.2 times its average — so 687.5M sold and 312.5M pooled make every
-    ///      coin exactly one billion.
-    uint128 supplyAtCap = 687_500_000 ether;
+    /// @notice The curve every coin launched from now on gets: a constant product, the quote
+    ///         reserve times the token reserve, over reserves that start with a phantom quote and
+    ///         `virtualTokenReserve` coins, PONS's model. The phantom quote is a share of the
+    ///         asset's cap, so every asset gets the same shape and only the money unit differs.
+    ///
+    ///         At 40% of a 4.2 ETH cap a coin opens as if its curve held 1.68 ETH against a
+    ///         billion coins: 1.68 ETH of FDV. It has sold 714.3M coins by the cap, at 12.25 times
+    ///         the opening price; the pool opens with the 204.1M that match the raise at that
+    ///         price, and the 81.6M left of the billion are locked at the dead address.
+    uint16 public virtualQuoteBps = 4_000;
+    uint128 public virtualTokenReserve = 1_000_000_000 ether;
+    /// @notice Every coin's supply once graduated: what the curve sold, the pool's coins, and
+    ///         the rest locked at the dead address.
+    uint128 public maxSupply = 1_000_000_000 ether;
 
     /// @notice A 1% trading fee, 30% of it to the protocol and 70% to the creator; a creator tax
     ///         of up to 10% on top; and a snipe tax that opens at 99% and is gone three seconds
@@ -124,7 +130,7 @@ contract CoinDeployer is ICoinDeployer, Ownable {
 
     event MemeCoinDeployed(address indexed creator, address indexed memecoin, address indexed quoteAsset);
     event QuoteAssetSet(address indexed token, uint96 cap, uint8 decimals, bool enabled);
-    event ParametersSet(uint16 powerN, uint16 powerD, uint128 supplyAtCap);
+    event ParametersSet(uint16 virtualQuoteBps, uint128 virtualTokenReserve, uint128 maxSupply);
     event FeeTermsSet(uint16 feeBps, uint16 protocolShareBps, uint16 maxCreatorTaxBps, uint16 snipeTaxStartBps, uint32 snipeTaxSeconds);
     event LaunchFeeSet(uint256 launchFee);
     /// @notice A reward coin's terms: its distributor, the share of every transfer it takes, and
@@ -132,7 +138,6 @@ contract CoinDeployer is ICoinDeployer, Ownable {
     event RewardsConfigured(address indexed memecoin, address indexed distributor, uint16 rewardFeeBps, bool shareFeesWithHolders);
 
     constructor(
-        address formula_,
         address listingManager_,
         address feeEscrow_,
         CoinCreator coinCreator_,
@@ -143,7 +148,6 @@ contract CoinDeployer is ICoinDeployer, Ownable {
             "Zero address"
         );
         rewardsImplementation = rewardsImplementation_;
-        formula = formula_;
         listingManager = listingManager_;
         feeEscrow = feeEscrow_;
         // Coin's creation code lives in the creator, not here, so this contract stays well
@@ -160,12 +164,29 @@ contract CoinDeployer is ICoinDeployer, Ownable {
     }
 
     /// @notice The curve every coin launched from now on gets. Coins already launched keep theirs.
-    function setParameters(uint16 powerN_, uint16 powerD_, uint128 supplyAtCap_) public onlyOwner {
-        require(powerN_ > 0 && powerD_ > 0 && supplyAtCap_ > 0, "Zero parameter");
-        powerN = powerN_;
-        powerD = powerD_;
-        supplyAtCap = supplyAtCap_;
-        emit ParametersSet(powerN_, powerD_, supplyAtCap_);
+    ///         Pump.fun's terms, for one: a phantom quote of 30 / 85 of the cap, 1.073B coins in
+    ///         the model and a billion in the coin.
+    function setParameters(uint16 virtualQuoteBps_, uint128 virtualTokenReserve_, uint128 maxSupply_) public onlyOwner {
+        require(virtualQuoteBps_ > 0 && virtualTokenReserve_ > 0 && maxSupply_ > 0, "Zero parameter");
+        // The model's token side is what every quote measures from: a coin that ended with more
+        // than it would leave that side negative once graduated.
+        require(maxSupply_ <= virtualTokenReserve_, "Supply above the model");
+        // What the curve sells by the cap and what the pool needs beside the raise, whatever the
+        // asset: the pool's coins are the sold coins scaled by virtualQuote / (virtualQuote + cap).
+        // The supply must hold both, or graduation would have to mint past it.
+        uint256 sold = Math.mulDiv(virtualTokenReserve_, BPS, uint256(virtualQuoteBps_) + BPS);
+        uint256 pooled = Math.mulDiv(sold, virtualQuoteBps_, uint256(virtualQuoteBps_) + BPS, Math.Rounding.Ceil);
+        require(sold + pooled <= maxSupply_, "Supply below the curve");
+        virtualQuoteBps = virtualQuoteBps_;
+        virtualTokenReserve = virtualTokenReserve_;
+        maxSupply = maxSupply_;
+        emit ParametersSet(virtualQuoteBps_, virtualTokenReserve_, maxSupply_);
+    }
+
+    /// @notice The phantom quote reserve a coin priced in `quoteAsset` launches with, in the
+    ///         asset's raw units: 1.68 ETH for a 4.2 ETH cap.
+    function virtualQuoteOf(address quoteAsset) public view returns (uint256) {
+        return (uint256(quoteAssets[quoteAsset].cap) * virtualQuoteBps) / BPS;
     }
 
     /// @notice The fee terms every coin launched from now on gets. Coins already launched keep
@@ -198,6 +219,8 @@ contract CoinDeployer is ICoinDeployer, Ownable {
         uint8 decimals = IERC20Metadata(token).decimals();
         // Prices are stated at eighteen decimals, scaled up from the token's own.
         require(decimals <= 18, "Too many decimals");
+        // A cap too small to carry a phantom quote would launch coins with no price (AUDIT-6 K-03).
+        require(uint256(cap) * virtualQuoteBps >= BPS, "Cap too small");
         if (quoteAssets[token].cap == 0) quoteAssetList.push(token);
         quoteAssets[token] = QuoteAsset({cap: cap, decimals: decimals, enabled: enabled});
         emit QuoteAssetSet(token, cap, decimals, enabled);
@@ -248,10 +271,12 @@ contract CoinDeployer is ICoinDeployer, Ownable {
         p.reserveToken = params.quoteAsset;
         p.cap = quote.cap;
         p.reserveDecimals = quote.decimals;
-        p.formula = formula;
-        p.powerN = powerN;
-        p.powerD = powerD;
-        p.supplyAtCap = supplyAtCap;
+        p.virtualQuote = uint128(virtualQuoteOf(params.quoteAsset));
+        // A curve with no phantom quote would open at a price of nothing and sell its whole
+        // token side to the first buyer.
+        require(p.virtualQuote > 0, "Cap too small");
+        p.virtualTokenReserve = virtualTokenReserve;
+        p.maxSupply = maxSupply;
         p.coinIndex = index;
         p.owner = msg.sender;
         p.feeEscrow = feeEscrow;
@@ -311,14 +336,20 @@ contract CoinDeployer is ICoinDeployer, Ownable {
     }
 
     /// @notice The reserve token per whole coin, scaled to 1e18, at the moment a coin paired
-    ///         with `quoteAsset` fills its cap: the price its pool opens at. At the cap the curve
-    ///         holds exactly `supplyAtCap`, so this is Coin.price() there.
+    ///         with `quoteAsset` fills its cap: the price its pool opens at, and Coin.price() at
+    ///         the cap. (virtualQuote + cap) over the coins the model has left, which is
+    ///         (1 + cap / virtualQuote)² times the opening price.
     function graduationPrice(address quoteAsset) public view returns (uint256 price) {
         QuoteAsset memory quote = quoteAssets[quoteAsset];
         require(quote.cap > 0, "Unknown quote asset");
-        uint32 powerNOfPowerPlus1 = uint32(powerN) + powerD;
+        uint256 virtualQuote = virtualQuoteOf(quoteAsset);
+        // With no phantom quote the model sells its whole token side by the cap, and there is
+        // no price to close at; say so rather than divide by zero (AUDIT-6 K-03).
+        require(virtualQuote > 0, "Cap too small");
+        uint256 quoteReserve = virtualQuote + quote.cap;
+        uint256 sold = Math.mulDiv(virtualTokenReserve, quote.cap, quoteReserve);
         uint256 scale = 10 ** (18 - quote.decimals);
-        price = Math.mulDiv(uint256(quote.cap) * powerNOfPowerPlus1 * scale, 1e18, uint256(supplyAtCap) * powerD);
+        price = Math.mulDiv(quoteReserve * scale, 1e18, virtualTokenReserve - sold);
     }
 
     /// @notice Where a coin with `symbol` lives, or will: coins are deployed by the creator at an

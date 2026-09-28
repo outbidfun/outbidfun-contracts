@@ -109,8 +109,6 @@ async function main() {
   const v3Factory = await hre.viem.deployContract('UniswapV3Factory', []);
   const swapRouter = await hre.viem.deployContract('SwapRouter', [v3Factory.address, weth.address]);
   const quoter = await hre.viem.deployContract('QuoterV2', [v3Factory.address, weth.address]);
-  const formula = await hre.viem.deployContract('Formula', []);
-  await formula.write.init();
   const treasury = await hre.viem.deployContract('Treasury', [owner.account.address]);
   const feeEscrow = await hre.viem.deployContract('FeeEscrow', []);
   const listingManager = await hre.viem.deployContract('CoinListingManager', [
@@ -123,7 +121,6 @@ async function main() {
   const coinCreator = await hre.viem.deployContract('CoinCreator', [owner.account.address]);
   const holderRewards = await hre.viem.deployContract('HolderRewards', []);
   const coinFactory = await hre.viem.deployContract('CoinFactory', [
-    formula.address,
     listingManager.address,
     feeEscrow.address,
     coinCreator.address,

@@ -5,8 +5,8 @@ import UniswapV3Module from './UniswapV3';
 
 /**
  * The whole platform: Treasury and OutbidMarket (Outbidfun module), the Uniswap V3 stack
- * (UniswapV3 module, needs the `weth` parameter), then the curve formula, the listing manager
- * and the CoinFactory, wired together:
+ * (UniswapV3 module, needs the `weth` parameter), then the listing manager and the CoinFactory,
+ * wired together:
  *
  *   - the listing manager becomes the V3 factory's owner, so only it can open pools;
  *   - the CoinFactory is the only caller allowed to ask the manager for a pool;
@@ -38,15 +38,12 @@ const LaunchpadModule = buildModule('Launchpad', (m) => {
   const { treasury, auction } = m.useModule(OutbidfunModule);
   const { v3Factory, swapRouter, quoter } = m.useModule(UniswapV3Module);
 
-  const formula = m.contract('Formula', []);
-  m.call(formula, 'init');
-
   const feeEscrow = m.contract('FeeEscrow', []);
   const listingManager = m.contract('CoinListingManager', [owner, treasury, v3Factory, feeEscrow, poolFee]);
   const coinCreator = m.contract('CoinCreator', [owner]);
   // Every reward coin gets a clone of this distributor at launch.
   const holderRewards = m.contract('HolderRewards', []);
-  const coinFactory = m.contract('CoinFactory', [formula, listingManager, feeEscrow, coinCreator, holderRewards]);
+  const coinFactory = m.contract('CoinFactory', [listingManager, feeEscrow, coinCreator, holderRewards]);
   // Third-party liquidity. It finds pools on the factory rather than through the listing
   // manager, so it reaches every pool on this deployment — OUTBID's included, which `poolOf`
   // never knows about. Nothing above depends on it; a deployment without it still works.
@@ -64,7 +61,6 @@ const LaunchpadModule = buildModule('Launchpad', (m) => {
     v3Factory,
     swapRouter,
     quoter,
-    formula,
     feeEscrow,
     listingManager,
     coinCreator,

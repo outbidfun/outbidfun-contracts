@@ -113,12 +113,14 @@ describe('Fees', () => {
       const bobBefore = await weth.read.balanceOf([bob.account.address]);
 
       const held = await coin.read.balanceOf([bob.account.address]);
-      // The curve gives back the 0.99 that went in, and the fee comes off that.
-      expect(await coin.read.calculateSaleReturn([held])).to.equal(parseEther('0.99'));
+      // The curve gives back the 0.99 that went in, less the wei its rounding keeps, and the fee
+      // comes off that.
+      const gross = await coin.read.calculateSaleReturn([held]);
+      expect(gross >= parseEther('0.99') - 1n && gross <= parseEther('0.99'), `${gross}`).to.equal(true);
       await sell(coin, bob, held);
 
-      const fee = parseEther('0.0099');
-      expect((await weth.read.balanceOf([bob.account.address])) - bobBefore).to.equal(parseEther('0.99') - fee);
+      const fee = (gross * FEE_BPS) / BPS;
+      expect((await weth.read.balanceOf([bob.account.address])) - bobBefore).to.equal(gross - fee);
       expect((await weth.read.balanceOf([treasury.address])) - treasuryBefore).to.equal(protocolShare(fee));
       expect(
         (await feeEscrow.read.balanceOf([alice.account.address, weth.address])) - creatorBefore
@@ -140,10 +142,12 @@ describe('Fees', () => {
 
       const held = await coin.read.balanceOf([bob.account.address]);
       const bobBefore = await weth.read.balanceOf([bob.account.address]);
+      // 0.94 back from the curve, less the wei its rounding keeps, less 1% and 5% of that.
+      const gross = await coin.read.calculateSaleReturn([held]);
+      expect(gross >= parseEther('0.94') - 1n && gross <= parseEther('0.94'), `${gross}`).to.equal(true);
       await sell(coin, bob, held);
-      // 0.94 back from the curve, less 1% and 5% of it.
       expect((await weth.read.balanceOf([bob.account.address])) - bobBefore).to.equal(
-        parseEther('0.94') - parseEther('0.0094') - parseEther('0.047')
+        gross - (gross * FEE_BPS) / BPS - (gross * 500n) / BPS
       );
     });
 

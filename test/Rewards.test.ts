@@ -107,11 +107,13 @@ describe('Reward coins', () => {
 
     it('holds the opening buy to three quarters of what the curve sells', async () => {
       const { launch, alice, dollar } = await deployLaunchpad();
-      // Three quarters of the curve costs 14,000 × 0.75^2.2 ≈ 7,436 of the cap's dollars.
-      await expect(launch(alice, 'Whale Dev', 'WHALE', { quote: dollar.address, preBuy: usd(8_000) })).to.be.rejectedWith(
+      // Three quarters of what the curve sells, 535.7M coins, takes the token side to 464.3M and
+      // so the quote side to 5,600 × 1B / 464.3M = 12,061.5: 6,461.5 dollars onto the curve,
+      // about 6,527 with the fee.
+      await expect(launch(alice, 'Whale Dev', 'WHALE', { quote: dollar.address, preBuy: usd(6_530) })).to.be.rejectedWith(
         'Opening buy over 75%'
       );
-      const coin = await launch(alice, 'Big Dev', 'BIGDEV', { quote: dollar.address, preBuy: usd(7_000) });
+      const coin = await launch(alice, 'Big Dev', 'BIGDEV', { quote: dollar.address, preBuy: usd(6_000) });
       const held = await coin.read.balanceOf([alice.account.address]);
       expect(held > (SUPPLY_AT_CAP * 70n) / 100n).to.equal(true);
       expect(held <= (SUPPLY_AT_CAP * 75n) / 100n).to.equal(true);

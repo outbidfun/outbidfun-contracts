@@ -4,7 +4,6 @@ pragma solidity ^0.8.24;
 import "./interfaces/ICoinDeployer.sol";
 import "./interfaces/ICoinListingManager.sol";
 import "./ERC20Plus.sol";
-import "./Formula.sol";
 import "./HolderRewards.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -18,6 +17,24 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 ///         the coin graduates into a pool against it. Every price this contract reports is the
 ///         reserve token per whole coin, scaled to 1e18 whatever the token's own decimals, so
 ///         a coin priced in a six-decimal dollar reads the same way as one priced in ether.
+///
+///         The curve is a constant product over virtual reserves, PONS's and pump.fun's model:
+///
+///             quoteReserve = virtualQuote + reserveBalance()
+///             tokenReserve = virtualTokenReserve - totalSupply()
+///             price        = quoteReserve / tokenReserve
+///
+///         A buy mints what leaves the token side and a sell burns what returns to it, keeping
+///         quoteReserve × tokenReserve where it was. The phantom quote is never held, and nothing
+///         here pays it out; it only sets where the price starts. At graduation the pool gets
+///         the coins that match the raise at the closing price, and the rest of `maxSupply` is
+///         locked at the dead address, so every coin ends with the same supply.
+///
+///         The curve's reserve is what arrived through `buy`, tracked in storage, less what `sell`
+///         paid out. Anything else the contract holds of its reserve token — sent to its address
+///         by mistake or on purpose — is a forced donation, untracked: it is not the curve's, it
+///         moves neither the price nor the graduation, no sale can carry it out, and anyone may
+///         sweep it to the treasury (AUDIT-6 K-04).
 ///
 ///         Every trade pays three things, all in the reserve token and never in the coin. A
 ///         trading fee, shared between the protocol and the creator at a split fixed for the
@@ -53,13 +70,23 @@ contract Coin is ERC20Plus, ReentrancyGuard {
     /// @notice Reserve at which the curve closes, in the reserve token's raw units. Zero once
     ///         the coin has graduated: that is how everything here tells the two states apart.
     uint96 public cap;
+    /// @dev The curve's reserve, in the reserve token's raw units: what buys put on it, less what
+    ///      sells took out. Tracked rather than read from the balance, so that a transfer to
+    ///      this address is never the curve's (AUDIT-6 K-04). Zero once graduated.
+    uint256 internal _curveReserve;
     /// @notice The cap the coin launched with, kept after graduation so a raise can be read back.
     uint96 public immutable graduationCap;
-    address internal immutable formula;
-    uint16 internal immutable powerN;
-    uint16 internal immutable powerD;
-    /// @dev Coins the curve has sold by the time its reserve reaches the cap.
-    uint128 internal immutable supplyAtCap;
+    /// @notice The curve's phantom quote reserve, in the reserve token's raw units: priced as if
+    ///         held, never held. It sets the opening price, virtualQuote / virtualTokenReserve.
+    uint256 public immutable virtualQuote;
+    /// @notice The coins the constant product starts from: the token side before any buy.
+    uint256 public immutable virtualTokenReserve;
+    /// @notice The supply once graduated: what the curve sold, the pool's coins, and the rest
+    ///         locked at the dead address. FDV is the price times this.
+    uint256 public immutable maxSupply;
+    /// @notice Coins the curve has sold by the time its reserve reaches the cap, if nothing is
+    ///         pushed into it: virtualTokenReserve × cap / (virtualQuote + cap).
+    uint256 public immutable supplyAtCap;
     uint32 public immutable coinIndex;
     address public immutable owner;
     /// @notice When the coin launched, which the snipe tax counts from.
@@ -112,6 +139,8 @@ contract Coin is ERC20Plus, ReentrancyGuard {
     ///         snipe tax, shared between protocol and creator) and the creator's tax.
     event FeesCharged(address indexed by, uint256 fee, uint256 tax);
     event CreatorFeeRecipientUpdated(address indexed previous, address indexed current);
+    /// @notice Reserve token that was not the curve's, sent to the treasury.
+    event ExcessSwept(uint256 amount);
 
     constructor() ERC20Plus(ICoinDeployer(ICoinCreator(_msgSender()).factory()).erc20Parameters()) {
         ICoinDeployer _deployer = ICoinDeployer(ICoinCreator(_msgSender()).factory());
@@ -121,10 +150,10 @@ contract Coin is ERC20Plus, ReentrancyGuard {
         reserveDecimals = p.reserveDecimals;
         cap = p.cap;
         graduationCap = p.cap;
-        formula = p.formula;
-        powerN = p.powerN;
-        powerD = p.powerD;
-        supplyAtCap = p.supplyAtCap;
+        virtualQuote = p.virtualQuote;
+        virtualTokenReserve = p.virtualTokenReserve;
+        maxSupply = p.maxSupply;
+        supplyAtCap = Math.mulDiv(p.virtualTokenReserve, p.cap, uint256(p.virtualQuote) + p.cap);
         coinIndex = p.coinIndex;
         owner = p.owner;
         launchedAt = uint64(block.timestamp);
@@ -246,28 +275,57 @@ contract Coin is ERC20Plus, ReentrancyGuard {
         return account;
     }
 
-    /// @notice Graduates a curve whose reserve has reached its cap without a buy filling it:
-    ///         reserve pushed in from outside, which would otherwise refuse every buy — and every
-    ///         bid — until someone sold (AUDIT-3 H-04). Anyone may call. What sits above the cap is
-    ///         protocol revenue, the way reserve pushed into an empty curve already is.
+    /// @notice The reserve token this contract holds beyond the curve's reserve: forced
+    ///         donations, untracked, and the whole balance once graduated.
+    function excessReserve() public view returns (uint256) {
+        uint256 balance = IERC20(reserveToken).balanceOf(address(this));
+        return balance > _curveReserve ? balance - _curveReserve : 0;
+    }
+
+    /// @notice Sweeps the untracked reserve token — what was sent here outside `buy`, a forced
+    ///         donation — to the treasury. Anyone may call; nothing else can move it, and no
+    ///         trade ever counts it (AUDIT-6 K-04).
+    function sweepExcess() external nonReentrant {
+        _sweepExcess();
+    }
+
+    /// @notice What the outbid market calls when a coin's balance has reached its cap, so that
+    ///         its bid still lands (AUDIT-3 H-04). Only a buy fills a tracked reserve, and the buy
+    ///         that does graduates in the same transaction, so a balance at the cap means
+    ///         untracked reserve, never a full curve: this sweeps it and returns, and the market's
+    ///         buy lands on the curve as it stands.
     function graduate() external notListed nonReentrant {
-        require(IERC20(reserveToken).balanceOf(address(this)) >= cap, 'Curve not full');
-        _listing(ICoinListingManager(listingManager).treasury());
+        _sweepExcess();
+    }
+
+    function _sweepExcess() private {
+        uint256 excess = excessReserve();
+        if (excess == 0) return;
+        IERC20(reserveToken).safeTransfer(ICoinListingManager(listingManager).treasury(), excess);
+        emit ExcessSwept(excess);
     }
 
     /// @dev Moves the curve's reserve and matching fresh supply into a pool the listing manager
-    ///      opens at the price the curve reached, and sends whatever is left over to `changeTo`:
-    ///      the buyer's change from a buy that filled the curve. The price is read before the
-    ///      listing mint changes the supply, and the curve is closed before anything external runs.
-    function _listing(address changeTo) internal {
+    ///      opens at the price the curve reached. The price is read before the listing mint
+    ///      changes the supply, and the curve is closed before anything external runs. Nothing
+    ///      else the contract holds is touched: a filling buy's change goes back from `_mintCoin`,
+    ///      and untracked reserve waits for `sweepExcess`.
+    function _listing() internal {
         uint256 _cap = cap;
-        // The curve's reserve is the cap; any leftover in the balance is the buyer's change.
         uint256 listingPrice = _priceAt(_cap, totalSupply());
         delete cap;
+        // The reserve goes to the pool whole; from here nothing is the curve's.
+        _curveReserve = 0;
 
         ICoinListingManager _listingManager = ICoinListingManager(listingManager);
         uint256 amountTokenForListing = _listingManager.tokensForListing(address(this), _cap, listingPrice);
         _mint(address(_listingManager), amountTokenForListing);
+        // The token side still holds more than the pool needs beside the raise: pooling it all
+        // would open the pool below the closing price. PONS locks the rest for good; here it is
+        // minted to the dead address, which is the same thing and leaves every coin at
+        // maxSupply. Guarded rather than required, so that no rounding can stop a graduation.
+        uint256 supply = totalSupply();
+        if (supply < maxSupply) _mint(DEAD, maxSupply - supply);
         IERC20 token = IERC20(reserveToken);
         token.safeTransfer(address(_listingManager), _cap);
         _listingManager.listMemeCoin(amountTokenForListing, _cap, listingPrice);
@@ -279,28 +337,36 @@ contract Coin is ERC20Plus, ReentrancyGuard {
             pool = pool_;
             HolderRewards(distributor).updateShares(pool_, 0, address(0), 0);
         }
-
-        uint256 leftover = token.balanceOf(address(this));
-        if (leftover > 0) token.safeTransfer(changeTo, leftover);
     }
 
-    /// @notice What the curve holds, in the reserve token's raw units.
+    /// @notice The curve's reserve, in the reserve token's raw units: what buys put on it, less
+    ///         what sells took out. Not the contract's balance, which may hold untracked reserve
+    ///         token besides (`excessReserve`).
     function reserveBalance() public view virtual returns (uint256) {
-        return IERC20(reserveToken).balanceOf(address(this));
+        return _curveReserve;
     }
 
-    /// @notice The reserve token per whole coin at the current supply, scaled to 1e18.
+    /// @notice The reserves the curve prices against, in raw units: the phantom quote plus what
+    ///         it holds, and the coins the model has not yet sold. Both zero once graduated, when
+    ///         the pool has the price.
+    function getReserves() public view returns (uint256 quoteReserve, uint256 tokenReserve) {
+        if (cap == 0) return (0, 0);
+        return (virtualQuote + reserveBalance(), virtualTokenReserve - totalSupply());
+    }
+
+    /// @notice The reserve token per whole coin right now, scaled to 1e18: quoteReserve over
+    ///         tokenReserve. A fresh coin already has one, virtualQuote / virtualTokenReserve.
+    ///         Zero once graduated.
     function price() public view returns (uint256) {
+        if (cap == 0) return 0;
         return _priceAt(reserveBalance(), totalSupply());
     }
 
-    /// @dev The curve is reserve = k * supply ^ (1 + powerN / powerD), so its marginal price is
-    ///      (1 + powerN / powerD) * reserve / supply. Read from the two balances this is exact
-    ///      arithmetic; raising the supply to a large power is not (audit F-18), and below one
-    ///      whole coin it used to panic outright (audit F-10).
+    /// @dev The curve's marginal price at `reserve` held and `supply` sold. Exact arithmetic
+    ///      from the two balances; the power curve before this one raised the supply to a
+    ///      power instead, and that was audit F-18.
     function _priceAt(uint256 reserve, uint256 supply) private view returns (uint256) {
-        if (supply == 0) return 0;
-        return Math.mulDiv(reserve * (uint256(powerN) + powerD) * priceScale, DECIMALS, supply * powerD);
+        return Math.mulDiv((virtualQuote + reserve) * priceScale, DECIMALS, virtualTokenReserve - supply);
     }
 
     /// @dev Pays out `fee` and `tax` of the reserve token: the protocol's share of the fee to
@@ -324,11 +390,12 @@ contract Coin is ERC20Plus, ReentrancyGuard {
     function _mintCoin(address minter, uint256 payment, uint256 minAmount) internal virtual {
         uint256 _cap = cap;
         IERC20 token = IERC20(reserveToken);
-        uint256 reserve = token.balanceOf(address(this)) - payment;
+        uint256 reserve = _curveReserve;
+        uint256 received = payment;
 
-        // Reserve pushed into an empty curve has no holder to belong to, and whoever bought next
-        // could mint a sliver of supply and sell it for the lot (audit G-03). It is protocol
-        // revenue. On a live curve, pushed-in reserve is simply shared by the holders.
+        // Reserve with no holder to belong to — the wei of rounding an emptied curve keeps — is
+        // protocol revenue (audit G-03). Reserve token pushed in from outside never reaches the
+        // reserve at all (AUDIT-6 K-04).
         if (totalSupply() == 0 && reserve > 0) {
             token.safeTransfer(ICoinListingManager(listingManager).treasury(), reserve);
             reserve = 0;
@@ -342,8 +409,8 @@ contract Coin is ERC20Plus, ReentrancyGuard {
         // stranger's buy would pay everything or more. Say so, rather than mint nothing or panic.
         require(rate < BPS, "Snipe tax: too early");
         uint256 value = payment - (payment * rate) / BPS;
-        // Reserve can be pushed in from outside; if that has already filled the cap, say so
-        // rather than underflow (audit G-03). A sell brings the reserve back under it.
+        // Only a buy fills the curve, and the buy that does graduates it below, so the reserve
+        // never stands at the cap when a buy arrives; the check is kept for the invariant.
         require(reserve < _cap, 'Curve is full');
         uint256 room = _cap - reserve;
         if (value > room) {
@@ -364,7 +431,10 @@ contract Coin is ERC20Plus, ReentrancyGuard {
         _mint(minter, amount - rewardFee);
         emit Buy(minter, amount - rewardFee, value, totalSupply(), block.timestamp);
 
-        if (token.balanceOf(address(this)) >= _cap) _listing(_msgSender());
+        _curveReserve = reserve + value;
+        if (reserve + value >= _cap) _listing();
+        // The change from a buy that filled the curve: what was received and not spent.
+        if (received > payment) token.safeTransfer(minter, received - payment);
     }
 
     /// @notice Pays `amountIn` of the reserve token, approved to this contract, for coins.
@@ -402,49 +472,29 @@ contract Coin is ERC20Plus, ReentrancyGuard {
         address msgSender = _msgSender();
         if (rewardFee > 0) _update(msgSender, rewardDistributor, rewardFee);
         _burn(msgSender, sold);
+        _curveReserve -= gross;
         emit Sell(msgSender, sold, liquidity, totalSupply(), block.timestamp);
 
         _payFees(msgSender, fee, tax);
         IERC20(reserveToken).safeTransfer(msgSender, liquidity);
     }
 
-    /// @dev Coins the curve owes for `_depositValue` added to a reserve of `_reserve`.
+    /// @dev Coins the curve owes for `_depositValue` added to a reserve of `_reserve`: what
+    ///      leaves the token side when the quote side grows by the deposit and the product stays.
     ///
-    ///      The supply the curve reaches is kept whole, fraction and all. Flooring it to whole
-    ///      coins made a small buy land on the supply it started from, minting nothing while
-    ///      keeping the money, and made one after a partial sell land below it and panic
-    ///      (audit F-07).
+    ///      Measured from the reserves as they stand, not from a product fixed at launch, so
+    ///      reserve pushed into a live curve is shared by its holders rather than handed to the
+    ///      next buyer. The token side left is rounded up, so the curve never gives out a wei
+    ///      more than the product allows and the product can only grow.
     function _calculatePurchaseReturn(
         uint256 _reserve,
         uint256 _depositValue
     ) internal view returns (uint256) {
-        uint32 powerNOfPowerPlus1 = uint32(powerN) + powerD;
-        uint256 reserve = _reserve;
-        uint256 supply = totalSupply();
-        uint256 newSupply;
-
-        if (reserve == 0 || supply == 0) {
-            // The first money in, or a curve that was sold out: the supply has to be found
-            // from the reserve alone, measured against the cap so the evaluation stays exact
-            // (audit G-01). Written as a difference so that it stays right whatever the
-            // reserve already holds.
-            Formula f = Formula(formula);
-            uint256 minted = f.supplyAt(reserve + _depositValue, cap, supplyAtCap, powerN, powerD)
-                - f.supplyAt(reserve, cap, supplyAtCap, powerN, powerD);
-            newSupply = supply + minted;
-        } else {
-            // supply * (1 + deposit / reserve) ^ (powerD / powerNOfPowerPlus1). Moving from
-            // where the curve already is keeps the base near one, which is the range the
-            // power function is exact in (audit F-18).
-            (uint256 result, uint8 precision) = Formula(formula).power(
-                reserve + _depositValue,
-                reserve,
-                powerD,
-                powerNOfPowerPlus1
-            );
-            newSupply = Math.mulDiv(supply, result, uint256(1) << precision);
-        }
-        return newSupply > supply ? newSupply - supply : 0;
+        uint256 quoteReserve = virtualQuote + _reserve;
+        uint256 tokenReserve = virtualTokenReserve - totalSupply();
+        uint256 tokenReserveAfter =
+            Math.mulDiv(quoteReserve, tokenReserve, quoteReserve + _depositValue, Math.Rounding.Ceil);
+        return tokenReserve - tokenReserveAfter;
     }
 
     /// @notice Coins a deposit of `_depositValue` raw units of the reserve token buys right now,
@@ -455,13 +505,28 @@ contract Coin is ERC20Plus, ReentrancyGuard {
         return _calculatePurchaseReturn(reserveBalance(), _depositValue);
     }
 
-    /// @notice Reserve the curve pays for `_saleAmount` coins, before the fees.
+    /// @notice The exact-output side of a buy: the smallest deposit, after the fees, that
+    ///         mints at least `_amount` coins right now. calculatePurchaseReturn of the answer is
+    ///         `_amount` or a wei or two more. A buy stops at the cap, so an amount past what the
+    ///         cap leaves room for cannot be bought in one.
+    function calculatePurchaseCost(
+        uint256 _amount
+    ) external view returns (uint256) {
+        uint256 quoteReserve = virtualQuote + reserveBalance();
+        uint256 tokenReserve = virtualTokenReserve - totalSupply();
+        require(_amount < tokenReserve, "Amount exceeds token reserve");
+        return Math.mulDiv(quoteReserve, tokenReserve, tokenReserve - _amount, Math.Rounding.Ceil) - quoteReserve;
+    }
+
+    /// @notice Reserve the curve pays for `_saleAmount` coins, before the fees: what leaves the
+    ///         quote side when the token side grows by the sale and the product stays. Measured
+    ///         from where the curve is, and rounded so the curve keeps the odd wei.
     ///
-    ///         Like a buy, this is measured from where the curve is rather than from the
-    ///         supply alone: the reserve left is `reserve / (supply / newSupply) ^ 2.2`, whose
-    ///         base is near one for any ordinary sale. Raising the supply itself to that power
-    ///         asked the curve's power function for an exponent it answers 87% short of, which
-    ///         paid a seller most of the reserve for half the supply (audit F-18).
+    ///         The last coins out are priced like any other: the product pays a sale exactly what
+    ///         buys put on the curve, to the wei. Handing the last seller whatever the contract
+    ///         held instead made a wei of supply worth the whole of a stranger's deposit (AUDIT-6
+    ///         K-01); now such a deposit is not the curve's at all (K-04). The wei of rounding an
+    ///         emptied curve keeps is protocol revenue, swept by the next buy (audit G-03).
     function calculateSaleReturn(
         uint256 _saleAmount
     ) public view returns (uint256) {
@@ -469,17 +534,28 @@ contract Coin is ERC20Plus, ReentrancyGuard {
         // Answer a quote for more than exists with a reason, not a panic (audit G-06).
         require(_saleAmount <= supply, "Retire Amount Exceeds Supply");
         uint256 reserve = reserveBalance();
-        uint256 newSupply = supply - _saleAmount;
-        if (newSupply == 0) return reserve;
 
-        uint32 powerNOfPowerPlus1 = uint32(powerN) + powerD;
-        (uint256 result, uint8 precision) = Formula(formula).power(
-            supply,
-            newSupply,
-            powerNOfPowerPlus1,
-            powerD
-        );
-        uint256 remaining = Math.mulDiv(reserve, uint256(1) << precision, result);
-        return reserve - remaining;
+        uint256 quoteReserve = virtualQuote + reserve;
+        uint256 tokenReserve = virtualTokenReserve - supply;
+        uint256 quoteReserveAfter =
+            Math.mulDiv(quoteReserve, tokenReserve, tokenReserve + _saleAmount, Math.Rounding.Ceil);
+        uint256 value = quoteReserve - quoteReserveAfter;
+        // The product only grows, so this never reaches into the phantom quote; the bound says
+        // so where it matters, since the phantom is not money the curve holds.
+        return value > reserve ? reserve : value;
+    }
+
+    /// @notice The exact-output side of a sale: the fewest coins for which the curve pays at
+    ///         least `_value` of the reserve token, before the fees.
+    function calculateSaleAmount(
+        uint256 _value
+    ) external view returns (uint256) {
+        uint256 reserve = reserveBalance();
+        require(_value <= reserve, "Value exceeds reserve");
+        uint256 supply = totalSupply();
+        uint256 quoteReserve = virtualQuote + reserve;
+        uint256 tokenReserve = virtualTokenReserve - supply;
+        uint256 amount = Math.mulDiv(quoteReserve, tokenReserve, quoteReserve - _value, Math.Rounding.Ceil) - tokenReserve;
+        return amount > supply ? supply : amount;
     }
 }

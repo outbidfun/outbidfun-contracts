@@ -17,10 +17,9 @@ Deployed addresses are in [DEPLOYMENTS.md](DEPLOYMENTS.md).
 
 | Contract | What it is |
 | -------- | ---------- |
-| `CoinFactory` / `CoinDeployer` | The launchpad. Lists the assets a coin can be priced in and the cap each graduates at, holds the curve parameters and fee terms for new coins, deploys each coin at a CREATE2 address derived from its symbol (`getAddress`), and answers `isMemeCoinLegit`. |
+| `CoinFactory` / `CoinDeployer` | The launchpad. Lists the assets a coin can be priced in and the cap each graduates at, holds the curve's terms (the virtual quote as a share of the cap, the model's coins, the final supply) and fee terms for new coins, deploys each coin at a CREATE2 address derived from its symbol (`getAddress`), and answers `isMemeCoinLegit`. |
 | `CoinCreator` | Holds `Coin`'s creation code for the factory, which could not carry it and stay under the size limit. |
-| `Coin` | One launched coin: an ERC20 with its bonding curve. `buy`, `sell`, `price`, the fee terms it launched with (immutables), and graduation. It holds its own curve reserve. |
-| `Formula` / `Power` | The curve's maths: `reserve = k · supply^(1 + powerN/powerD)`, evaluated with Bancor's fixed-point power function. |
+| `Coin` | One launched coin: an ERC20 with its bonding curve, a constant product over virtual reserves (`quoteReserve = virtualQuote + reserve`, `tokenReserve = virtualTokenReserve − supply`). `buy`, `sell`, `price`, `getReserves`, quotes for exact input and exact output, the fee terms it launched with (immutables), and graduation, which pools the raise's worth at the closing price and locks the rest of the supply at the dead address. It holds its own curve reserve. |
 | `HolderRewards` | A reward coin's distributor (cloned per coin): shares a cut of every transfer, and optionally the creator's fees, among holders. |
 | `FeeEscrow` | Where a creator's share of fees waits to be claimed. |
 | `CoinListingManager` | Owns the Uniswap V3 factory, so only it can open pools. At graduation it opens the coin's pool at the curve's final price and mints one full-range position it can never withdraw. `collectFees` sweeps that position's swap fees. |

@@ -17,12 +17,11 @@ contract CoinFactory is CoinDeployer {
     event AccountInfoUpdated(address indexed account, string indexed nickname, string profilePicture);
 
     constructor(
-        address formula_,
         address listingManager_,
         address feeEscrow_,
         CoinCreator coinCreator_,
         address rewardsImplementation_
-    ) CoinDeployer(formula_, listingManager_, feeEscrow_, coinCreator_, rewardsImplementation_) { }
+    ) CoinDeployer(listingManager_, feeEscrow_, coinCreator_, rewardsImplementation_) { }
 
     function updateAccountInfo(string memory nickname, string memory profilePicture) external virtual {
         require(nicknamesToAccounts[nickname] == address(0) || nicknamesToAccounts[nickname] == msg.sender, "Nickname exists");

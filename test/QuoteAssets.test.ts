@@ -2,7 +2,18 @@ import { loadFixture } from '@nomicfoundation/hardhat-toolbox-viem/network-helpe
 import { expect } from 'chai';
 import hre from 'hardhat';
 import { parseEther, parseUnits } from 'viem';
-import { SUPPLY_AT_CAP, USD_CAP, WETH_CAP, deployLaunchpad, ppm, usd } from './helpers/launchpad';
+import {
+  SUPPLY_AT_CAP,
+  TOTAL_SUPPLY,
+  USD_CAP,
+  WETH_CAP,
+  closingPriceX18,
+  deployLaunchpad,
+  ppm,
+  usd,
+} from './helpers/launchpad';
+
+const DEAD = '0x000000000000000000000000000000000000dEaD';
 
 /**
  * The assets a coin can be paired with.
@@ -74,13 +85,13 @@ describe('Quote assets', () => {
 
   it('prices graduation in each asset from the same curve', async () => {
     const { coinFactory, weth, dollar } = await loadFixture(deployLaunchpad);
-    // 2.2 × cap over the 687.5M coins the curve sells, at eighteen decimals either way.
-    expect(await coinFactory.read.graduationPrice([weth.address])).to.equal(
-      (11n * WETH_CAP * parseEther('1')) / (5n * SUPPLY_AT_CAP)
-    );
-    expect(await coinFactory.read.graduationPrice([dollar.address])).to.equal(
-      (11n * USD_CAP * 10n ** 12n * parseEther('1')) / (5n * SUPPLY_AT_CAP)
-    );
+    // The phantom 40% plus the cap, over the 285.7M coins the model has left: 12.25 times the
+    // opening price in every asset, at eighteen decimals either way.
+    expect(await coinFactory.read.graduationPrice([weth.address])).to.equal(closingPriceX18(WETH_CAP));
+    expect(await coinFactory.read.graduationPrice([weth.address])).to.equal(20_579_999_999n);
+    expect(await coinFactory.read.graduationPrice([dollar.address])).to.equal(closingPriceX18(USD_CAP, 6));
+    expect(await coinFactory.read.virtualQuoteOf([weth.address])).to.equal(parseEther('1.68'));
+    expect(await coinFactory.read.virtualQuoteOf([dollar.address])).to.equal(usd(5_600));
     const stray = await hre.viem.deployContract('MockERC20', ['Stray', 'STRAY', 18, 0n]);
     await expect(coinFactory.read.graduationPrice([stray.address])).to.be.rejectedWith('Unknown quote asset');
   });
@@ -96,23 +107,49 @@ describe('Quote assets', () => {
 
     for (const coin of [inEther, inDollars]) {
       const pool = await listingManager.read.poolOf([coin.address]);
-      const sold = (await coin.read.totalSupply()) - (await coin.read.balanceOf([pool]));
+      const sold =
+        (await coin.read.totalSupply()) - (await coin.read.balanceOf([pool])) - (await coin.read.balanceOf([DEAD]));
       expect(ppm(sold, SUPPLY_AT_CAP) < 10n, `${sold}`).to.equal(true);
+      expect(await coin.read.totalSupply()).to.equal(TOTAL_SUPPLY);
     }
   });
 
   it('lets the owner change the curve for coins launched from then on', async () => {
-    const { coinFactory, launch, weth, alice, bob } = await loadFixture(deployLaunchpad);
-    await expect(coinFactory.write.setParameters([6, 5, 0n])).to.be.rejectedWith('Zero parameter');
-    await expect(
-      coinFactory.write.setParameters([6, 5, parseEther('1000000000')], { account: bob.account })
-    ).to.be.rejectedWith('OwnableUnauthorizedAccount');
-
-    await coinFactory.write.setParameters([6, 5, parseEther('1000000000')]);
-    expect(await coinFactory.read.graduationPrice([weth.address])).to.equal(
-      (11n * WETH_CAP * parseEther('1')) / (5n * parseEther('1000000000'))
+    const { coinFactory, launch, buy, weth, alice, bob, listingManager } = await loadFixture(deployLaunchpad);
+    const before = await launch(alice, 'Pons Terms', 'PONS1', { quote: weth.address });
+    // Pump.fun's terms: a phantom 30 / 85 of the cap, 1.073B coins in the model, a billion minted.
+    const pump = [3_529, parseEther('1073000000'), TOTAL_SUPPLY] as const;
+    await expect(coinFactory.write.setParameters([0, pump[1], pump[2]])).to.be.rejectedWith('Zero parameter');
+    await expect(coinFactory.write.setParameters([pump[0], pump[1], 0n])).to.be.rejectedWith('Zero parameter');
+    await expect(coinFactory.write.setParameters([...pump], { account: bob.account })).to.be.rejectedWith(
+      'OwnableUnauthorizedAccount'
     );
-    const coin = await launch(alice, 'Billion', 'BILL', { quote: weth.address });
-    expect(coin.address).to.not.equal(undefined);
+    // A supply the model does not hold, or one that could not hold what the curve sells and what
+    // its pool needs.
+    await expect(coinFactory.write.setParameters([pump[0], pump[1], parseEther('1100000000')])).to.be.rejectedWith(
+      'Supply above the model'
+    );
+    await expect(coinFactory.write.setParameters([pump[0], pump[1], parseEther('999000000')])).to.be.rejectedWith(
+      'Supply below the curve'
+    );
+
+    await coinFactory.write.setParameters([...pump]);
+    expect(await coinFactory.read.virtualQuoteOf([weth.address])).to.equal((WETH_CAP * 3_529n) / 10_000n);
+    const coin = await launch(alice, 'Pump Terms', 'PUMP', { quote: weth.address });
+    expect(await coin.read.virtualTokenReserve()).to.equal(pump[1]);
+    // It opens at its phantom quote over the 1.073B coins in the model.
+    expect(ppm(await coin.read.price(), (((WETH_CAP * 3_529n) / 10_000n) * 10n ** 18n) / pump[1]) < 1n).to.equal(true);
+    // The coins launched before keep the curve they started with.
+    expect(await before.read.virtualTokenReserve()).to.equal(parseEther('1000000000'));
+
+    // It sells 793.1M by the cap, the pool opens with 206.9M, and a few thousand are left to lock.
+    await buy(coin, alice, parseEther('10'));
+    const pool = await listingManager.read.poolOf([coin.address]);
+    const pooled = await coin.read.balanceOf([pool]);
+    const locked = await coin.read.balanceOf([DEAD]);
+    expect(ppm((await coin.read.totalSupply()) - pooled - locked, parseEther('793100000')) < 100n).to.equal(true);
+    expect(ppm(pooled, parseEther('206880000')) < 100n, `${pooled}`).to.equal(true);
+    expect(locked < parseEther('100000')).to.equal(true);
+    expect(await coin.read.totalSupply()).to.equal(TOTAL_SUPPLY);
   });
 });

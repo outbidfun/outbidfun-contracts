@@ -38,7 +38,10 @@
     "executor:testnet": "hardhat ignition deploy ignition/modules/SwapExecutor.ts --network robinhoodTestnet --parameters ignition/config/robinhood-testnet.json",
     "executor-venues": "hardhat run scripts/executor-venues.ts",
     "market:mainnet": "hardhat ignition deploy ignition/modules/OutbidMarketV2.ts --network robinhood --parameters ignition/config/base.json",
-    "migrate-market": "hardhat run scripts/migrate-market.ts"
+    "migrate-market": "hardhat run scripts/migrate-market.ts",
+    "launchpad-v2:mainnet": "hardhat ignition deploy ignition/modules/LaunchpadV2.ts --network robinhood --parameters ignition/config/launchpad-v2.json --deployment-id chain-4663-launchpad-v2",
+    "launchpad-v2:testnet": "hardhat ignition deploy ignition/modules/LaunchpadV2.ts --network robinhoodTestnet --parameters ignition/config/launchpad-v2-testnet.json --deployment-id chain-46630-launchpad-v2",
+    "migrate-launchpad": "hardhat run scripts/migrate-launchpad.ts"
   },
   "dependencies": {
     "@openzeppelin/contracts": "^5.0.0"

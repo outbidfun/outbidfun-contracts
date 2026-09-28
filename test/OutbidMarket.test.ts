@@ -223,6 +223,32 @@ describe('OutbidMarket', () => {
       expect(await market.read.getTotalBid([dog.address])).to.equal(board(1_004));
     });
 
+    it('takes any amount from the minimum as a plain bid, wherever its total ranks, without forcing #1', async () => {
+      const { market, coin, bid, alice, bob, carol } = await loadFixture(deployFixture);
+      const dog = await coin();
+      const cat = await coin();
+      const fox = await coin();
+      await bid(dog.address, alice, usdg(1_000));
+
+      // Nowhere near the 1,002 that takes #1: `outbid` refuses it, a plain bid takes it as named.
+      await expect(market.write.outbid([cat.address, usdg(40), 0n, 0n], { account: bob.account })).to.be.rejectedWith(
+        'BidTooLow'
+      );
+      await bid(cat.address, bob, usdg(40));
+      await bid(fox.address, carol, usdg('1.5'));
+      // Paid with ether and not asking for #1, it bids whatever the swap brought: 0.01 ETH, 30 USDG.
+      await market.write.bidWith([fox.address, zeroAddress, parseEther('0.01'), 0n, 0n, 0n, false], {
+        account: carol.account,
+        value: parseEther('0.01'),
+      });
+
+      expect(await market.read.getTotalBid([cat.address])).to.equal(board(40));
+      expect(await market.read.getTotalBid([fox.address])).to.equal(board('31.5'));
+      expect(await market.read.topToken()).to.equal(getAddress(dog.address));
+      const board3 = (await market.read.getTopTokens([3n])).map((address) => address.toLowerCase());
+      expect(board3).to.deep.equal([dog.address, cat.address, fox.address].map((address) => address.toLowerCase()));
+    });
+
     it('fails when someone raised the bar first (race condition from spec §14)', async () => {
       const { market, coin, bid, alice, bob, carol } = await loadFixture(deployFixture);
       const dog = await coin();

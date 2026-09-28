@@ -10,10 +10,16 @@ export const WETH_CAP = parseEther('4.2');
 /** What a coin priced in the six-decimal dollar graduates at: thirty thousand of them. */
 export const USD_DECIMALS = 6;
 export const USD_CAP = 14_000n * 10n ** BigInt(USD_DECIMALS);
-/** Coins every curve has sold by the time it graduates, whatever it is priced in. */
-/** What every curve sells by graduation; the pool gets 1 / 2.2 of it, for a billion in all. */
-export const SUPPLY_AT_CAP = parseEther('687500000');
+
+/**
+ * The curve every coin launches on, PONS's: a constant product over a phantom quote of 40% of the
+ * cap (1.68 ETH on 4.2) and a billion coins. Every coin ends at a billion once graduated.
+ */
+export const VIRTUAL_QUOTE_BPS = 4_000n;
+export const VIRTUAL_TOKEN_RESERVE = parseEther('1000000000');
 export const TOTAL_SUPPLY = parseEther('1000000000');
+/** What every curve sells by graduation, whatever it is priced in: a billion / 1.4, 714.29M. */
+export const SUPPLY_AT_CAP = (VIRTUAL_TOKEN_RESERVE * 10_000n) / (VIRTUAL_QUOTE_BPS + 10_000n);
 
 /** The fee terms every coin launches with, the same PONS trades on. */
 export const LAUNCH_FEE = parseEther('0.0005');
@@ -45,7 +51,7 @@ export type LaunchOptions = {
 
 /**
  * The whole launchpad, wired the way Ignition deploys it: WETH9, the Uniswap V3 factory,
- * router and quoter, the curve formula, the treasury, the fee escrow, the listing manager
+ * router and quoter, the treasury, the fee escrow, the listing manager
  * (which owns the factory, so only it can open pools), the coin creator, the CoinFactory and
  * the LiquidityManager.
  *
@@ -62,8 +68,6 @@ export async function deployLaunchpad() {
   const swapRouter = await hre.viem.deployContract('SwapRouter', [v3Factory.address, weth.address]);
   const quoter = await hre.viem.deployContract('QuoterV2', [v3Factory.address, weth.address]);
 
-  const formula = await hre.viem.deployContract('Formula', []);
-  await formula.write.init();
   const treasury = await hre.viem.deployContract('Treasury', [owner!.account.address]);
   const feeEscrow = await hre.viem.deployContract('FeeEscrow', []);
   const listingManager = await hre.viem.deployContract('CoinListingManager', [
@@ -76,7 +80,6 @@ export async function deployLaunchpad() {
   const coinCreator = await hre.viem.deployContract('CoinCreator', [owner!.account.address]);
   const holderRewards = await hre.viem.deployContract('HolderRewards', []);
   const coinFactory = await hre.viem.deployContract('CoinFactory', [
-    formula.address,
     listingManager.address,
     feeEscrow.address,
     coinCreator.address,
@@ -170,7 +173,6 @@ export async function deployLaunchpad() {
     v3Factory,
     swapRouter,
     quoter,
-    formula,
     treasury,
     feeEscrow,
     listingManager,
@@ -184,6 +186,31 @@ export async function deployLaunchpad() {
     sell,
     approveAll,
   };
+}
+
+/** The phantom quote a coin with `cap` launches with: 40% of it. */
+export const virtualQuoteOf = (cap: bigint) => (cap * VIRTUAL_QUOTE_BPS) / BPS;
+
+const ceilDiv = (a: bigint, b: bigint) => (a + b - 1n) / b;
+
+/**
+ * Coins a deposit mints from `quoteReserve` and `tokenReserve`, the way Coin.sol does it: what
+ * leaves the token side while the product stays, the side left rounded up.
+ */
+export function coinsFor(quoteReserve: bigint, tokenReserve: bigint, deposit: bigint): bigint {
+  return tokenReserve - ceilDiv(quoteReserve * tokenReserve, quoteReserve + deposit);
+}
+
+/** The price a curve reaches at `reserve` held and `supply` sold, at eighteen decimals. */
+export function curvePriceX18(cap: bigint, reserve: bigint, supply: bigint, quoteDecimals = 18): bigint {
+  const scale = 10n ** BigInt(18 - quoteDecimals);
+  return ((virtualQuoteOf(cap) + reserve) * scale * 10n ** 18n) / (VIRTUAL_TOKEN_RESERVE - supply);
+}
+
+/** Where a curve with `cap` closes, and its pool opens: CoinFactory.graduationPrice, restated. */
+export function closingPriceX18(cap: bigint, quoteDecimals = 18): bigint {
+  const sold = (VIRTUAL_TOKEN_RESERVE * cap) / (virtualQuoteOf(cap) + cap);
+  return curvePriceX18(cap, cap, sold, quoteDecimals);
 }
 
 /** What the curve keeps of a payment once the 1% fee has come off, and no creator tax. */

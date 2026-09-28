@@ -1,0 +1,10 @@
+{
+  "LaunchpadV2#CoinCreator": "0x1A9f6Fa66A7A624d1739B4c6059392AcA1ae4FC3",
+  "UniswapV3#UniswapV3Factory": "0x6FfCE4fE24b35Ba8c765e3441331300d22934F8b",
+  "UniswapV3#QuoterV2": "0x800a27ccD1B5E7b6C5f31AF9aaaA57820aF3C84D",
+  "UniswapV3#SwapRouter": "0xd49c70e5e6d80105A6B816ccC0b7Ab59A133F07A",
+  "LaunchpadV2#CoinListingManager": "0x92249Af303eE9c2B6373CD375ae1a39Cd24fe6e9",
+  "LaunchpadV2#CoinFactory": "0x306729FB70a6b3C535a0ed64A5b7E6b70702c45B",
+  "LaunchpadV2#LiquidityManager": "0x83DA3b5C2CE469788ef3a470bCc17699E0e20575",
+  "LaunchpadV2#TokenRegistryUnion": "0xB61a68f49d4956ff0F7013598ac49c9D3DCBAA99"
+}

@@ -182,35 +182,43 @@ describe('OutbidMarket with the real launchpad', () => {
     expect(await distributor.read.sharesOf([market.address])).to.equal(0n);
   });
 
-  it('graduates a curve pushed full from outside, so a bid on it still lands (AUDIT-3 H-04)', async () => {
+  it('lands a bid on a coin whose balance was pushed to its cap: the market sweeps, then buys (AUDIT-3 H-04)', async () => {
     const { market, launch, buy, alice, bob, carol, dollar, treasury, listingManager, publicClient } = await loadFixture(deployFixture);
     const fed = await launch(alice, 'Federal Reserve', 'FED', { quote: dollar.address });
     // Alice fills it to about 1.4 USDG short of its 14,000 USDG cap, and Carol pushes 2 USDG in.
+    // The curve does not count Carol's (AUDIT-6 K-04), but the market, which reads the balance,
+    // sees it at the cap and calls `graduate` first: that sweeps the 2 USDG, and the bid's buy
+    // then fills the curve for real and graduates it inside the bid.
     await buy(fed, alice, usd(14_140));
-    expect((await fed.read.reserveBalance()) < USD_CAP).to.equal(true);
+    const reserve = await fed.read.reserveBalance();
+    expect(reserve < USD_CAP).to.equal(true);
     const hash = await dollar.write.transfer([fed.address, usd(2)], { account: carol.account });
     await publicClient.waitForTransactionReceipt({ hash });
-    await expect(buy(fed, bob, usd(100))).to.be.rejectedWith('Curve is full');
+    expect(await fed.read.reserveBalance()).to.equal(reserve);
 
     const treasuryBefore = await dollar.read.balanceOf([treasury.address]);
-    const reserve = await fed.read.reserveBalance();
     await market.write.bid([fed.address, usd(100), 1n, 0n], { account: bob.account });
     expect(await fed.read.cap()).to.equal(0n);
     expect(await listingManager.read.poolOf([fed.address])).to.not.equal(zeroAddress);
     expect(await market.read.getTotalBid([fed.address])).to.equal(parseEther('100'));
     expect((await fed.read.balanceOf([DEAD])) > 0n).to.equal(true);
-    // What sat above the cap is the protocol's, along with the bid's 5% and the pool buy's fee.
-    expect((await dollar.read.balanceOf([treasury.address])) - treasuryBefore >= reserve - USD_CAP).to.equal(true);
+    // Carol's 2 USDG went to the treasury, along with the bid's 5% and the pool buy's fee.
+    expect((await dollar.read.balanceOf([treasury.address])) - treasuryBefore >= usd(2) + usd(5)).to.equal(true);
   });
 
-  it('lets anyone graduate a full curve, and no other', async () => {
-    const { launch, buy, alice, carol, dollar, publicClient } = await loadFixture(deployFixture);
+  it('fills a curve by buys alone: what is pushed in is swept, and a graduated coin sweeps no more', async () => {
+    const { launch, buy, alice, carol, dollar, treasury, publicClient } = await loadFixture(deployFixture);
     const fed = await launch(alice, 'Federal Reserve', 'FED', { quote: dollar.address });
     await buy(fed, alice, usd(5_000));
-    await expect(fed.write.graduate({ account: carol.account })).to.be.rejectedWith('Curve not full');
     const hash = await dollar.write.transfer([fed.address, usd(9_100)], { account: carol.account });
     await publicClient.waitForTransactionReceipt({ hash });
+    // Before AUDIT-6 K-04 this graduated the coin on Carol's money.
+    const treasuryBefore = await dollar.read.balanceOf([treasury.address]);
     await fed.write.graduate({ account: carol.account });
+    expect(await fed.read.cap()).to.equal(USD_CAP);
+    expect((await dollar.read.balanceOf([treasury.address])) - treasuryBefore).to.equal(usd(9_100));
+
+    await buy(fed, alice, usd(10_000));
     expect(await fed.read.cap()).to.equal(0n);
     await expect(fed.write.graduate({ account: carol.account })).to.be.rejectedWith('Already listed');
   });

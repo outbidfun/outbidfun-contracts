@@ -23,19 +23,20 @@ async function supplyAfter(total: bigint, steps: number) {
 
 describe('Second review regressions', () => {
   describe('the first buy (G-01)', () => {
-    it('evaluates a fresh curve to within a millionth of a percent, above and below one ETH', async () => {
-      const { formula } = await loadFixture(fresh);
-      // 800M · (R / 4.2)^(5/11) coins. Exact values from 90-digit decimal arithmetic; the formula
-      // takes the supply as an argument, so this checks its precision, not the deployed figure.
+    it('evaluates a fresh curve exactly, above and below one ETH', async () => {
+      const { coin } = await loadFixture(fresh);
+      // A billion · R / (1.68 + R) coins: a quarter of the phantom quote buys a fifth of the
+      // model, the phantom quote itself half, and one and a half times it three fifths. The power
+      // curve this replaced answered 0.2% short here; the constant product is exact to the wei.
       const cases: [bigint, bigint][] = [
-        [WETH_CAP, 800_000_000_000_000_000_000_000_000n],
-        [parseEther('2'), 570_987_592_537_575_852_063_128_134n],
-        [parseEther('0.1'), 146_301_709_387_744_741_999_845_428n],
-        [parseEther('0.001'), 18_036_758_539_348_182_354_485_877n],
+        [parseEther('0.42'), parseEther('200000000')],
+        [parseEther('1.68'), parseEther('500000000')],
+        [parseEther('2.52'), parseEther('600000000')],
+        // 10^27 · 0.001 / 1.681, floored.
+        [parseEther('0.001'), 594_883_997_620_464_009_518_143n],
       ];
-      for (const [reserve, exact] of cases) {
-        const supply = await formula.read.supplyAt([reserve, WETH_CAP, parseEther('800000000'), 6, 5]);
-        expect(ppm(supply, exact), `reserve ${reserve}`).to.be.lessThan(0.01);
+      for (const [deposit, exact] of cases) {
+        expect(await coin.read.calculatePurchaseReturn([deposit]), `deposit ${deposit}`).to.equal(exact);
       }
     });
 
@@ -66,26 +67,32 @@ describe('Second review regressions', () => {
     });
   });
 
-  describe('forced reserve (G-03)', () => {
-    it('refuses a buy with a reason once pushed-in reserve has filled the cap, and resumes after a sell', async () => {
-      const { coin, buy, sell, weth, alice, bob, publicClient } = await loadFixture(fresh);
+  describe('forced reserve (G-03; AUDIT-6 K-04)', () => {
+    it('never counts reserve token sent past the curve: not for the cap, and not for a buy', async () => {
+      const { coin, buy, weth, alice, bob, publicClient, treasury } = await loadFixture(fresh);
       await buy(coin, alice, parseEther('1'));
       const cap = await coin.read.cap();
-      // Anyone can send the reserve token straight to the coin, past the curve.
-      const hash = await weth.write.transfer([coin.address, cap - (await coin.read.reserveBalance())], {
-        account: bob.account,
-      });
+      const reserve = await coin.read.reserveBalance();
+      // Anyone can send the reserve token straight to the coin, past the curve. It used to fill
+      // the cap and stop every buy until someone sold or graduated it (AUDIT-3 H-04).
+      const hash = await weth.write.transfer([coin.address, cap - reserve], { account: bob.account });
       await publicClient.waitForTransactionReceipt({ hash });
+      expect(await coin.read.reserveBalance()).to.equal(reserve);
+      expect(await coin.read.excessReserve()).to.equal(cap - reserve);
 
-      await expect(buy(coin, bob, parseEther('0.1'))).to.be.rejectedWith('Curve is full');
-      expect(await coin.read.cap()).to.equal(cap);
-
-      await sell(coin, alice, (await coin.read.balanceOf([alice.account.address])) / 10n);
       await buy(coin, bob, parseEther('0.1'));
+      expect(await coin.read.cap()).to.equal(cap);
+      expect(await coin.read.reserveBalance()).to.equal(reserve + parseEther('0.099'));
+
+      // What the market would do on seeing the balance at the cap: a sweep, not a graduation.
+      const treasuryBefore = await weth.read.balanceOf([treasury.address]);
+      await coin.write.graduate({ account: bob.account });
+      expect(await coin.read.cap()).to.equal(cap);
+      expect((await weth.read.balanceOf([treasury.address])) - treasuryBefore).to.equal(cap - reserve);
     });
 
-    it('sweeps pushed-in reserve on an empty curve to the treasury rather than to the next buyer', async () => {
-      const { coin, buy, sell, weth, alice, bob, publicClient, treasury } = await loadFixture(fresh);
+    it('lets nobody buy an empty curve\'s pushed-in reserve, which only the sweep can move', async () => {
+      const { coin, buy, sell, weth, alice, bob, carol, publicClient, treasury } = await loadFixture(fresh);
       await buy(coin, alice, parseEther('1'));
       await sell(coin, alice, await coin.read.balanceOf([alice.account.address]));
       expect(await coin.read.totalSupply()).to.equal(0n);
@@ -93,15 +100,16 @@ describe('Second review regressions', () => {
       await publicClient.waitForTransactionReceipt({ hash });
 
       // Before the fix bob paid 0.01 ETH and sold the whole curve for 0.9691.
-      const treasuryBefore = await weth.read.balanceOf([treasury.address]);
       const before = await weth.read.balanceOf([bob.account.address]);
       await buy(coin, bob, parseEther('0.01'));
       await sell(coin, bob, await coin.read.balanceOf([bob.account.address]));
-      const after = await weth.read.balanceOf([bob.account.address]);
-      expect(after < before).to.equal(true);
-      // The 1 ETH went to the treasury, along with bob's fees.
-      const treasuryGain = (await weth.read.balanceOf([treasury.address])) - treasuryBefore;
-      expect(treasuryGain > parseEther('1')).to.equal(true);
+      expect((await weth.read.balanceOf([bob.account.address])) < before).to.equal(true);
+      expect((await coin.read.excessReserve()) >= parseEther('1')).to.equal(true);
+
+      const treasuryBefore = await weth.read.balanceOf([treasury.address]);
+      await coin.write.sweepExcess({ account: carol.account });
+      expect((await weth.read.balanceOf([treasury.address])) - treasuryBefore >= parseEther('1')).to.equal(true);
+      expect(await coin.read.excessReserve()).to.equal(0n);
     });
   });
 

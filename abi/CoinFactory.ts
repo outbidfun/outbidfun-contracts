@@ -4,11 +4,6 @@ export const coinFactoryAbi = [
     "inputs": [
       {
         "internalType": "address",
-        "name": "formula_",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
         "name": "listingManager_",
         "type": "address"
       },
@@ -210,19 +205,19 @@ export const coinFactoryAbi = [
       {
         "indexed": false,
         "internalType": "uint16",
-        "name": "powerN",
-        "type": "uint16"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint16",
-        "name": "powerD",
+        "name": "virtualQuoteBps",
         "type": "uint16"
       },
       {
         "indexed": false,
         "internalType": "uint128",
-        "name": "supplyAtCap",
+        "name": "virtualTokenReserve",
+        "type": "uint128"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint128",
+        "name": "maxSupply",
         "type": "uint128"
       }
     ],
@@ -555,19 +550,6 @@ export const coinFactoryAbi = [
     "type": "function"
   },
   {
-    "inputs": [],
-    "name": "formula",
-    "outputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
     "inputs": [
       {
         "internalType": "string",
@@ -675,6 +657,19 @@ export const coinFactoryAbi = [
     "type": "function"
   },
   {
+    "inputs": [],
+    "name": "maxSupply",
+    "outputs": [
+      {
+        "internalType": "uint128",
+        "name": "",
+        "type": "uint128"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [
       {
         "internalType": "address",
@@ -757,23 +752,18 @@ export const coinFactoryAbi = [
             "type": "uint8"
           },
           {
-            "internalType": "address",
-            "name": "formula",
-            "type": "address"
-          },
-          {
-            "internalType": "uint16",
-            "name": "powerN",
-            "type": "uint16"
-          },
-          {
-            "internalType": "uint16",
-            "name": "powerD",
-            "type": "uint16"
+            "internalType": "uint128",
+            "name": "virtualQuote",
+            "type": "uint128"
           },
           {
             "internalType": "uint128",
-            "name": "supplyAtCap",
+            "name": "virtualTokenReserve",
+            "type": "uint128"
+          },
+          {
+            "internalType": "uint128",
+            "name": "maxSupply",
             "type": "uint128"
           },
           {
@@ -980,17 +970,17 @@ export const coinFactoryAbi = [
     "inputs": [
       {
         "internalType": "uint16",
-        "name": "powerN_",
-        "type": "uint16"
-      },
-      {
-        "internalType": "uint16",
-        "name": "powerD_",
+        "name": "virtualQuoteBps_",
         "type": "uint16"
       },
       {
         "internalType": "uint128",
-        "name": "supplyAtCap_",
+        "name": "virtualTokenReserve_",
+        "type": "uint128"
+      },
+      {
+        "internalType": "uint128",
+        "name": "maxSupply_",
         "type": "uint128"
       }
     ],
@@ -1051,6 +1041,51 @@ export const coinFactoryAbi = [
     "name": "updateAccountInfo",
     "outputs": [],
     "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "virtualQuoteBps",
+    "outputs": [
+      {
+        "internalType": "uint16",
+        "name": "",
+        "type": "uint16"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "quoteAsset",
+        "type": "address"
+      }
+    ],
+    "name": "virtualQuoteOf",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "virtualTokenReserve",
+    "outputs": [
+      {
+        "internalType": "uint128",
+        "name": "",
+        "type": "uint128"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   }
 ] as const;

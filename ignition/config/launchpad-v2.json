@@ -1,0 +1,14 @@
+{
+  "UniswapV3": {
+    "weth": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73"
+  },
+  "LaunchpadV2": {
+    "treasury": "0xeEc171B409788644acBf1c50B825Cc6d9682D9b7",
+    "feeEscrow": "0x836a770fB5f88E19282D2Dc7342d81b2B6fA6178",
+    "holderRewards": "0xEa5AFB7bA39c6259f5717550884D441E3B1dD9aC",
+    "oldFactory": "0xDadC43dbf60eA5d4598C39500Ede46De6A14c0d0",
+    "weth": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+    "wethCap": "4200000000000000000",
+    "poolFee": 10000
+  }
+}

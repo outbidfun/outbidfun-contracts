@@ -12,11 +12,13 @@ interface ICoinDeployer is IERC20ParametersPacker {
         /// @dev Reserve, in that asset's own raw units, at which the coin graduates.
         uint96 cap;
         uint8 reserveDecimals;
-        address formula;
-        uint16 powerN;
-        uint16 powerD;
-        /// @dev Coins the curve has sold by the time it reaches the cap, in coin wei.
-        uint128 supplyAtCap;
+        /// @dev The curve's phantom quote reserve, in that asset's raw units: priced as if held,
+        ///      never held. It sets the opening price.
+        uint128 virtualQuote;
+        /// @dev The coins the constant product starts from, in coin wei.
+        uint128 virtualTokenReserve;
+        /// @dev The coin's supply once graduated, in coin wei.
+        uint128 maxSupply;
         uint32 coinIndex;
         address owner;
         /// @dev Where the creator's share of fees is credited, and who receives it.

@@ -13,6 +13,8 @@ import {
   USD_CAP,
   WETH_CAP,
   USD_DECIMALS,
+  closingPriceX18,
+  curvePriceX18,
   deployLaunchpad,
   netOfFee,
   poolPriceX18,
@@ -21,6 +23,7 @@ import {
 } from './helpers/launchpad';
 
 const DEADLINE = 4_102_444_800n; // 2100-01-01
+const DEAD = '0x000000000000000000000000000000000000dEaD';
 
 describe('Graduation into an outbidfun.lol pool', () => {
   async function launchedFixture() {
@@ -118,21 +121,30 @@ describe('Graduation into an outbidfun.lol pool', () => {
       expect(ppm(wethInPool, WETH_CAP) < 1n).to.equal(true);
       expect(await weth.read.balanceOf([coin.address])).to.equal(0n);
 
-      // The pool opens at the price the curve reached: (1 + powerN / powerD) * cap over the
-      // supply the curve had sold. (coin.price() is no longer that figure, because the supply
-      // it reads now includes what was minted into the pool.)
+      // The pool opens at the price the curve reached: the phantom 1.68 ETH plus the 4.2 raised,
+      // over the coins the model had left. (coin.price() reads zero now: the pool has the price.)
       const [sqrtPriceX96] = await poolContract.read.slot0();
-      const soldByTheCurve = (await coin.read.totalSupply()) - (await coin.read.balanceOf([pool]));
-      const curvePrice = (11n * WETH_CAP * parseEther('1')) / (5n * soldByTheCurve);
+      const pooled = await coin.read.balanceOf([pool]);
+      const locked = await coin.read.balanceOf([DEAD]);
+      const soldByTheCurve = (await coin.read.totalSupply()) - pooled - locked;
+      const curvePrice = curvePriceX18(WETH_CAP, WETH_CAP, soldByTheCurve);
       expect(ppm(poolPriceX18(sqrtPriceX96, coinIsToken0), curvePrice) < 10n).to.equal(true);
       expect(ppm(priceBefore, curvePrice) > 1000n).to.equal(true); // it really moved
+      expect(await coin.read.price()).to.equal(0n);
+      expect(await coin.read.getReserves()).to.deep.equal([0n, 0n]);
 
-      // Every curve sells the same supply by the time it fills, whatever it is priced in, and the
-      // pool's share on top makes a billion.
+      // Every curve sells the same supply by the time it fills, whatever it is priced in: 714.29M.
       expect(ppm(soldByTheCurve, SUPPLY_AT_CAP) < 10n, `sold ${soldByTheCurve}`).to.equal(true);
-      expect(ppm(await coin.read.totalSupply(), TOTAL_SUPPLY) < 10n).to.equal(true);
+      // The pool gets the coins the raise buys at that price, 204.08M, and no more: pooling all
+      // the model had left would open it 29% under where the curve closed. The other 81.63M are
+      // locked at the dead address, as PONS locks them, and the supply is a billion exactly.
+      expect(ppm(pooled, (WETH_CAP * 10n ** 18n) / curvePrice) < 10n, `pooled ${pooled}`).to.equal(true);
+      expect(ppm(pooled, parseEther('204081632.65')) < 10n, `pooled ${pooled}`).to.equal(true);
+      expect(ppm(locked, parseEther('81632653.06')) < 10n, `locked ${locked}`).to.equal(true);
+      expect(await coin.read.totalSupply()).to.equal(TOTAL_SUPPLY);
       // So the factory knows the opening price before a single buy.
       const graduationPrice = await coinFactory.read.graduationPrice([weth.address]);
+      expect(graduationPrice).to.equal(closingPriceX18(WETH_CAP));
       expect(ppm(graduationPrice, curvePrice) < 10n, `estimate ${graduationPrice} vs ${curvePrice}`).to.equal(true);
 
       // Nothing minted for the listing is left over, and the manager holds no reserve.
@@ -210,10 +222,12 @@ describe('Graduation into an outbidfun.lol pool', () => {
       // The pool opens where the curve ended, read in dollars per coin at eighteen decimals.
       const poolContract = await hre.viem.getContractAt('UniswapV3Pool', pool);
       const [sqrtPriceX96] = await poolContract.read.slot0();
-      const soldByTheCurve = (await coin.read.totalSupply()) - (await coin.read.balanceOf([pool]));
-      const curvePrice = (11n * USD_CAP * 10n ** 12n * parseEther('1')) / (5n * soldByTheCurve);
+      const soldByTheCurve =
+        (await coin.read.totalSupply()) - (await coin.read.balanceOf([pool])) - (await coin.read.balanceOf([DEAD]));
+      const curvePrice = curvePriceX18(USD_CAP, USD_CAP, soldByTheCurve, USD_DECIMALS);
       expect(ppm(poolPriceX18(sqrtPriceX96, coinIsToken0, USD_DECIMALS), curvePrice) < 10n).to.equal(true);
       expect(ppm(soldByTheCurve, SUPPLY_AT_CAP) < 10n).to.equal(true);
+      expect(await coin.read.totalSupply()).to.equal(TOTAL_SUPPLY);
       expect(ppm(await coinFactory.read.graduationPrice([dollar.address]), curvePrice) < 10n).to.equal(true);
     });
   });
