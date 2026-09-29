@@ -1,0 +1,10 @@
+{
+  "note": "The AMM routers an executor on Robinhood Chain testnet may call: the constant-product launchpad's own SwapRouter (28 September 2026). The first launchpad's router is listed at deployment (robinhood-testnet.json and trade-router-testnet.json platformRouter). 1 is v3-periphery's SwapRouter shape.",
+  "venues": [
+    {
+      "name": "outbidfun (launchpad v2)",
+      "router": "0xd49c70e5e6d80105A6B816ccC0b7Ab59A133F07A",
+      "venue": 1
+    }
+  ]
+}

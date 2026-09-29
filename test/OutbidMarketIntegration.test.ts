@@ -1,4 +1,4 @@
-import { loadFixture, time } from '@nomicfoundation/hardhat-toolbox-viem/network-helpers';
+import { loadFixture, takeSnapshot, time } from '@nomicfoundation/hardhat-toolbox-viem/network-helpers';
 import { expect } from 'chai';
 import hre from 'hardhat';
 import { encodePacked, getAddress, maxUint256, parseEther, zeroAddress, type Address } from 'viem';
@@ -407,6 +407,64 @@ describe('OutbidMarket with the real launchpad', () => {
     expect(sqrtAfter).to.not.equal(sqrtBefore);
     expect((await fed.read.balanceOf([DEAD])) > 0n).to.equal(true);
     expect(await dollar.read.balanceOf([market.address])).to.equal(0n);
+  });
+
+  describe('the burn share is a market buy (AUDIT-3 B-01, measured on the constant product)', () => {
+    /**
+     * Carol trades straight round a coin twice from the same state: once alone, once with Bob's
+     * 1,000 USDG bid landing in the middle. What the bid adds to her round trip is what she took
+     * from its burn share. The scenario is the third review's, so the figures compare.
+     */
+    async function sandwich(venue: 'curve' | 'pool') {
+      const { market, launch, buy, sell, alice, bob, carol, dollar, swapRouter, publicClient } = await loadFixture(deployFixture);
+      const fed = await launch(alice, 'Federal Reserve', 'FED', { quote: dollar.address });
+      // The curve: 1,980 USDG on it. The pool: graduated, 14,000 USDG in it.
+      await buy(fed, alice, venue === 'curve' ? usd(2_000) : usd(20_000));
+      for (const token of [dollar.address, fed.address]) {
+        const erc20 = await hre.viem.getContractAt('MockERC20', token);
+        const hash = await erc20.write.approve([swapRouter.address, maxUint256], { account: carol.account });
+        await publicClient.waitForTransactionReceipt({ hash });
+      }
+      const swap = async (tokenIn: Address, tokenOut: Address, amountIn: bigint) => {
+        const hash = await swapRouter.write.exactInputSingle(
+          [{ tokenIn, tokenOut, fee: POOL_FEE, recipient: carol.account.address, deadline: 4_102_444_800n, amountIn, amountOutMinimum: 0n, sqrtPriceLimitX96: 0n }],
+          { account: carol.account }
+        );
+        await publicClient.waitForTransactionReceipt({ hash });
+      };
+      const roundTrip = async (withBid: boolean) => {
+        const snapshot = await takeSnapshot();
+        const before = await dollar.read.balanceOf([carol.account.address]);
+        if (venue === 'curve') await buy(fed, carol, usd(2_000));
+        else await swap(dollar.address, fed.address, usd(2_000));
+        if (withBid) await market.write.bid([fed.address, usd(1_000), 1n, 0n], { account: bob.account });
+        const held = await fed.read.balanceOf([carol.account.address]);
+        if (venue === 'curve') await sell(fed, carol, held);
+        else await swap(fed.address, dollar.address, held);
+        const result = (await dollar.read.balanceOf([carol.account.address])) - before;
+        await snapshot.restore();
+        return result;
+      };
+      const alone = await roundTrip(false);
+      const around = await roundTrip(true);
+      return { alone, around, taken: around - alone };
+    }
+
+    it('lets a trader round a bid on the curve take 37.7% of what it puts on it', async () => {
+      const { alone, around, taken } = await sandwich('curve');
+      // Alone, Carol pays the 1% each way: 39.80 USDG. Round the bid she makes 240.47, so she took
+      // 280.27 of the 742.50 the bid put on the curve. The power curve gave up 30.0% (222.64).
+      expect(alone).to.equal(-usd(39.8));
+      expect(taken > usd(280) && taken < usd(280.5), `${taken}`).to.equal(true);
+      expect(around > 0n).to.equal(true);
+    });
+
+    it('lets a trader round a bid in the pool take 23.3% of what it swaps', async () => {
+      const { alone, taken } = await sandwich('pool');
+      // The pool holds 14,000 USDG either way, so this is the third review's figure to the cent.
+      expect(alone < 0n).to.equal(true);
+      expect(taken > usd(174.2) && taken < usd(174.6), `${taken}`).to.equal(true);
+    });
   });
 
   it('graduates a coin when the bid fills its curve, and buys the rest in the new pool', async () => {

@@ -45,6 +45,11 @@ const config: HardhatUserConfig = {
       // 25.3KB through the legacy pipeline, past the 24KB limit even at runs 1. Through the IR
       // pipeline it is 21.5KB at the usual runs.
       'contracts/OutbidMarket.sol': { version: '0.8.24', settings: { viaIR: true, optimizer: { enabled: true, runs: 200 } } },
+      // The executor's trade carries its fee side and the fee on the way out: past the legacy
+      // pipeline's sixteen stack slots in \`execute\`, which the IR pipeline allocates itself.
+      'contracts/SwapExecutor.sol': { version: '0.8.24', settings: { viaIR: true, optimizer: { enabled: true, runs: 200 } } },
+      // A test router that imports the executor's router interface, and so compiles it too.
+      'contracts/test/Router02Front.sol': { version: '0.8.24', settings: { viaIR: true, optimizer: { enabled: true, runs: 200 } } },
       'contracts/uniswap-v3/periphery/SwapRouter.sol': uniswapV3Periphery,
       'contracts/uniswap-v3/periphery/lens/QuoterV2.sol': uniswapV3Periphery,
     },

@@ -37,13 +37,19 @@ Deployed from 27 September 2026, starting at block 73821560.
 | SwapExecutor | `SwapExecutor#SwapExecutor` | [`0x4Db20d13fB8016632164f1381317e7Cfc51C1ffF`](https://robinhoodchain.blockscout.com/address/0x4Db20d13fB8016632164f1381317e7Cfc51C1ffF) |
 | SwapRouter | `UniswapV3#SwapRouter` | [`0x57026679c31341a55BbB14de96245407c99d1a50`](https://robinhoodchain.blockscout.com/address/0x57026679c31341a55BbB14de96245407c99d1a50) |
 | TokenRegistryUnion | `LaunchpadV2#TokenRegistryUnion` | [`0x93f3CF53EF9ca9B7FAa016c20c7FC9DD6FB75321`](https://robinhoodchain.blockscout.com/address/0x93f3CF53EF9ca9B7FAa016c20c7FC9DD6FB75321) |
+| TradeRouter | `TradeRouter#TradeRouter` | [`0x5cFE31511A01161136171309881a6820E6a647f7`](https://robinhoodchain.blockscout.com/address/0x5cFE31511A01161136171309881a6820E6a647f7) |
 | Treasury | `Outbidfun#Treasury` | [`0xE693C039cc91F8dbe64586245565388e2e44C0A4`](https://robinhoodchain.blockscout.com/address/0xE693C039cc91F8dbe64586245565388e2e44C0A4) |
 | UniswapV3Factory | `UniswapV3#UniswapV3Factory` | [`0x0A2F7aC477350C18E46224b4cDa5110017519d6f`](https://robinhoodchain.blockscout.com/address/0x0A2F7aC477350C18E46224b4cDa5110017519d6f) |
 
 - `Outbidfun#OutbidMarket` is the first outbid market. It is frozen, and its board was carried
   over to `OutbidMarketV2#OutbidMarket` on 28 September 2026.
-- `SwapExecutor` and `OutbidMarketV2#OutbidMarket` were deployed from this source, apart from
-  license headers.
+- `OutbidMarketV2#OutbidMarket` was deployed from this source, apart from license headers.
+- `TradeRouter#TradeRouter` is this source's `SwapExecutor.sol`, deployed on 29 September 2026 as
+  the trade router: every trade sent from outbidfun.lol goes through it, and it pays a 0.05% fee
+  (`feeBps` 5, capped at 25 in the contract) to the `RevenueRouter`, logging each as `FeeCharged`.
+- `SwapExecutor#SwapExecutor` is the outbid market's executor, with no fee. It was deployed from
+  the revision before `SwapExecutor.sol` gained the fee and the curve trades (`feeBps`,
+  `buyCurve`, `sellCurve`, `FeeCharged`), so its verified source on the explorer is authoritative.
 - The `Launchpad` and `OutbidEconomy` modules were deployed from an earlier revision.
   `Coin`, `HolderRewards` and `RevenueRouter` have changed in this repository since then, and
   so have the license headers of the files that were `UNLICENSED`. A redeployment from this source
@@ -75,8 +81,11 @@ Deployed from 27 September 2026, starting at block 73821560.
 | RevenueRouter | `OutbidEconomy#RevenueRouter` | [`0x5F4f566cd20A140A7902Cb4b8d77D09eB0001D92`](https://explorer.testnet.chain.robinhood.com/address/0x5F4f566cd20A140A7902Cb4b8d77D09eB0001D92) |
 | SwapRouter | `UniswapV3#SwapRouter` | [`0xd49c70e5e6d80105A6B816ccC0b7Ab59A133F07A`](https://explorer.testnet.chain.robinhood.com/address/0xd49c70e5e6d80105A6B816ccC0b7Ab59A133F07A) |
 | TokenRegistryUnion | `LaunchpadV2#TokenRegistryUnion` | [`0xB61a68f49d4956ff0F7013598ac49c9D3DCBAA99`](https://explorer.testnet.chain.robinhood.com/address/0xB61a68f49d4956ff0F7013598ac49c9D3DCBAA99) |
+| TradeRouter | `TradeRouter#TradeRouter` | [`0x1a8363CfaB9726AA4398C41C2583636cB1a97ba6`](https://explorer.testnet.chain.robinhood.com/address/0x1a8363CfaB9726AA4398C41C2583636cB1a97ba6) |
 | Treasury | `Outbidfun#Treasury` | [`0xe5d9Bb7231792591F92B6538622691E65b80cD5b`](https://explorer.testnet.chain.robinhood.com/address/0xe5d9Bb7231792591F92B6538622691E65b80cD5b) |
 | UniswapV3Factory | `UniswapV3#UniswapV3Factory` | [`0x6FfCE4fE24b35Ba8c765e3441331300d22934F8b`](https://explorer.testnet.chain.robinhood.com/address/0x6FfCE4fE24b35Ba8c765e3441331300d22934F8b) |
 
 - The launchpad and economy contracts match this source, apart from license headers.
 - The testnet's `OutbidMarket` predates `bidVia` and the `SwapExecutor`, which is not deployed there.
+- `TradeRouter#TradeRouter` is this source's `SwapExecutor.sol`, the testnet's trade router, with the
+  same 0.05% fee as mainnet's.

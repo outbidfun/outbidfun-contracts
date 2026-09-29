@@ -4,6 +4,10 @@
  *   pnpm --filter @outbidfun/protocol executor-venues --network robinhood             # dry run
  *   EXECUTE=1 pnpm --filter @outbidfun/protocol executor-venues --network robinhood   # send
  *
+ * The executor is the market's, `SwapExecutor#SwapExecutor` in `chain-<id>`, unless
+ * EXECUTOR_DEPLOYMENT and EXECUTOR_KEY name another: the trade router is
+ * `EXECUTOR_DEPLOYMENT=chain-<id>-trade-router EXECUTOR_KEY=TradeRouter#TradeRouter`.
+ *
  * Every router is checked on chain first: it must have code, and wrap into the same wrapped ether
  * the executor does (`WETH9()`), or it is left out. A router already listed as asked is left as it
  * is. The executor is the one in this network's deployment record, and the caller must own it.
@@ -30,12 +34,14 @@ if (!wallet) throw new Error('DEPLOYER_PRIVATE_KEY is not set in packages/protoc
 const execute = process.env.EXECUTE === '1';
 
 const root = join(import.meta.dirname, '..', 'ignition');
-const deployed = JSON.parse(readFileSync(join(root, 'deployments', `chain-${chainId}`, 'deployed_addresses.json'), 'utf8')) as Record<
+const deployment = process.env.EXECUTOR_DEPLOYMENT || `chain-${chainId}`;
+const key = process.env.EXECUTOR_KEY || 'SwapExecutor#SwapExecutor';
+const deployed = JSON.parse(readFileSync(join(root, 'deployments', deployment, 'deployed_addresses.json'), 'utf8')) as Record<
   string,
   Address
 >;
-const executor = deployed['SwapExecutor#SwapExecutor'];
-if (!executor) throw new Error(`No SwapExecutor in the chain-${chainId} deployment.`);
+const executor = deployed[key];
+if (!executor) throw new Error(`No ${key} in the ${deployment} deployment.`);
 const { venues } = JSON.parse(readFileSync(join(root, 'config', `executor-venues-${chainId}.json`), 'utf8')) as {
   venues: { name: string; router: Address; venue: number }[];
 };

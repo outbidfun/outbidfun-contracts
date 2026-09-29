@@ -1,6 +1,8 @@
 /**
  * Hands every contract the deployer owns to a new owner — a multisig, such as a Safe — on one
- * network, from that network's Ignition deployment record (ignition/deployments/chain-<id>).
+ * network, from that network's Ignition deployment records: `chain-<id>` (the first launchpad,
+ * the markets, the economy, the swap executor) and `chain-<id>-launchpad-v2` (the launchpad on the
+ * constant-product curve), where it exists.
  *
  *   NEW_OWNER=0x… pnpm --filter @outbidfun/protocol transfer-ownership --network robinhood
  *   NEW_OWNER=0x… EXECUTE=1 pnpm --filter @outbidfun/protocol transfer-ownership --network robinhood
@@ -12,9 +14,10 @@
  * anything is sent. Do the owner-only setup first (bid routes, the buyback keeper): after this,
  * each of those is a multisig transaction.
  *
- * The Uniswap V3 factory is not on the list: the listing manager owns it, and moves with it.
+ * The Uniswap V3 factories are not on the list: each listing manager owns its own, and it moves
+ * with it. Nor are the LiquidityManagers and the registry union, which have no owner.
  */
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import hre from 'hardhat';
 import { getAddress, isAddress, parseAbi, type Address } from 'viem';
@@ -23,11 +26,16 @@ import { getAddress, isAddress, parseAbi, type Address } from 'viem';
 const OWNED = [
   'Outbidfun#Treasury',
   'Outbidfun#OutbidMarket',
+  'OutbidMarketV2#OutbidMarket',
   'Launchpad#CoinCreator',
   'Launchpad#CoinListingManager',
   'Launchpad#CoinFactory',
+  'LaunchpadV2#CoinCreator',
+  'LaunchpadV2#CoinListingManager',
+  'LaunchpadV2#CoinFactory',
   'OutbidEconomy#OutbidBuyback',
   'OutbidEconomy#RevenueRouter',
+  'SwapExecutor#SwapExecutor',
 ] as const;
 
 const ownableAbi = parseAbi([
@@ -43,8 +51,13 @@ if (!wallet) throw new Error('DEPLOYER_PRIVATE_KEY is not set in packages/protoc
 const me = getAddress(wallet.account.address);
 const execute = process.env.EXECUTE === '1';
 
-const deployed = JSON.parse(
-  readFileSync(join(import.meta.dirname, '..', 'ignition', 'deployments', `chain-${chainId}`, 'deployed_addresses.json'), 'utf8')
+/** Every record this network has, merged: a later record's futures are named apart from the first's. */
+const deployed = Object.assign(
+  {},
+  ...[`chain-${chainId}`, `chain-${chainId}-launchpad-v2`].map((id) => {
+    const file = join(import.meta.dirname, '..', 'ignition', 'deployments', id, 'deployed_addresses.json');
+    return existsSync(file) ? (JSON.parse(readFileSync(file, 'utf8')) as Record<string, Address>) : {};
+  })
 ) as Record<string, Address>;
 
 const target = process.env.NEW_OWNER?.trim();

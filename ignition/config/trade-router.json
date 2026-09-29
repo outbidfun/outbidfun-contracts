@@ -1,0 +1,10 @@
+{
+  "TradeRouter": {
+    "weth": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+    "platformRouter": "0xf5f476d0F06f20E5932Fbf599FA3C8be53081a9B",
+    "usdg": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+    "coins": "0x93f3CF53EF9ca9B7FAa016c20c7FC9DD6FB75321",
+    "feeBps": 5,
+    "feeRecipient": "0xeEc171B409788644acBf1c50B825Cc6d9682D9b7"
+  }
+}
