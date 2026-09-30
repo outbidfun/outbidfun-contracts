@@ -17,6 +17,7 @@ import {
   usd,
   virtualQuoteOf,
 } from './helpers/launchpad';
+import { deployMarket } from './helpers/market';
 
 describe('The bonding curve', () => {
   async function launchedFixture() {
@@ -332,7 +333,7 @@ describe('The bonding curve', () => {
       const fake = await hre.viem.deployContract('FakeCoin', []);
       expect(await coinFactory.read.isMemeCoinLegit([fake.address])).to.equal(false);
 
-      const auction = await hre.viem.deployContract('OutbidMarket', [
+      const auction = await deployMarket([
         owner.account.address,
         dollar.address,
         weth.address,

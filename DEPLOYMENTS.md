@@ -27,11 +27,16 @@ Deployed from 27 September 2026, starting at block 73821560.
 | FeeEscrow | `Launchpad#FeeEscrow` | [`0x836a770fB5f88E19282D2Dc7342d81b2B6fA6178`](https://robinhoodchain.blockscout.com/address/0x836a770fB5f88E19282D2Dc7342d81b2B6fA6178) |
 | Formula | `Launchpad#Formula` | [`0x3f701DA02e313da123ba502CaDd989841fB30547`](https://robinhoodchain.blockscout.com/address/0x3f701DA02e313da123ba502CaDd989841fB30547) |
 | HolderRewards | `Launchpad#HolderRewards` | [`0xEa5AFB7bA39c6259f5717550884D441E3B1dD9aC`](https://robinhoodchain.blockscout.com/address/0xEa5AFB7bA39c6259f5717550884D441E3B1dD9aC) |
+| Implementation | `OutbidMarketV3#Implementation` | [`0x6180a2ED853Df74Eaf89a2bF43eDa91922cD4E71`](https://robinhoodchain.blockscout.com/address/0x6180a2ED853Df74Eaf89a2bF43eDa91922cD4E71) |
+| InfinityAdapter | `KeyedPoolAdapters#InfinityAdapter` | [`0xFebBC3FAaA226Ada976AC5355c7b3AabC8c71dE2`](https://robinhoodchain.blockscout.com/address/0xFebBC3FAaA226Ada976AC5355c7b3AabC8c71dE2) |
 | LiquidityManager | `Launchpad#LiquidityManager` | [`0x921b8c2E5096187460a1d95EF7ebb7CbC30E8154`](https://robinhoodchain.blockscout.com/address/0x921b8c2E5096187460a1d95EF7ebb7CbC30E8154) |
 | LiquidityManager | `LaunchpadV2#LiquidityManager` | [`0xfCDFf7fffCb74c45CE7A418e6FcbB5A7a4E782d1`](https://robinhoodchain.blockscout.com/address/0xfCDFf7fffCb74c45CE7A418e6FcbB5A7a4E782d1) |
 | OutbidBuyback | `OutbidEconomy#OutbidBuyback` | [`0x9FBb9614bA47F2FD7ECFaa16880B535034a4eEF5`](https://robinhoodchain.blockscout.com/address/0x9FBb9614bA47F2FD7ECFaa16880B535034a4eEF5) |
 | OutbidMarket | `Outbidfun#OutbidMarket` | [`0x1Eaca99186F58A258B08fd7A25524A20c31def63`](https://robinhoodchain.blockscout.com/address/0x1Eaca99186F58A258B08fd7A25524A20c31def63) |
 | OutbidMarket | `OutbidMarketV2#OutbidMarket` | [`0xad7ca6bf8c0ab7793eBEC811Da5F54304383669A`](https://robinhoodchain.blockscout.com/address/0xad7ca6bf8c0ab7793eBEC811Da5F54304383669A) |
+| PonsTokenRegistry | `OutbidMarketV3#PonsTokenRegistry` | [`0xe7D7698DdBAfB28034dCd1b37EC1FD127fDA84c3`](https://robinhoodchain.blockscout.com/address/0xe7D7698DdBAfB28034dCd1b37EC1FD127fDA84c3) |
+| ProtocolRegistry | `ProtocolRegistry#ProtocolRegistry` | [`0xe474680846735dab1c5E2EA1C56b2B12c64aaC1f`](https://robinhoodchain.blockscout.com/address/0xe474680846735dab1c5E2EA1C56b2B12c64aaC1f) |
+| Proxy | `OutbidMarketV3#Proxy` | [`0x6D11a610838CBd91c44186D393dEe3f5AA11Ad4C`](https://robinhoodchain.blockscout.com/address/0x6D11a610838CBd91c44186D393dEe3f5AA11Ad4C) |
 | QuoterV2 | `UniswapV3#QuoterV2` | [`0x9Dc417FCf502043593882D68AdA2dFF0Bc296327`](https://robinhoodchain.blockscout.com/address/0x9Dc417FCf502043593882D68AdA2dFF0Bc296327) |
 | RevenueRouter | `OutbidEconomy#RevenueRouter` | [`0xeEc171B409788644acBf1c50B825Cc6d9682D9b7`](https://robinhoodchain.blockscout.com/address/0xeEc171B409788644acBf1c50B825Cc6d9682D9b7) |
 | SwapExecutor | `SwapExecutor#SwapExecutor` | [`0x4Db20d13fB8016632164f1381317e7Cfc51C1ffF`](https://robinhoodchain.blockscout.com/address/0x4Db20d13fB8016632164f1381317e7Cfc51C1ffF) |
@@ -40,10 +45,23 @@ Deployed from 27 September 2026, starting at block 73821560.
 | TradeRouter | `TradeRouter#TradeRouter` | [`0x5cFE31511A01161136171309881a6820E6a647f7`](https://robinhoodchain.blockscout.com/address/0x5cFE31511A01161136171309881a6820E6a647f7) |
 | Treasury | `Outbidfun#Treasury` | [`0xE693C039cc91F8dbe64586245565388e2e44C0A4`](https://robinhoodchain.blockscout.com/address/0xE693C039cc91F8dbe64586245565388e2e44C0A4) |
 | UniswapV3Factory | `UniswapV3#UniswapV3Factory` | [`0x0A2F7aC477350C18E46224b4cDa5110017519d6f`](https://robinhoodchain.blockscout.com/address/0x0A2F7aC477350C18E46224b4cDa5110017519d6f) |
+| UniswapV4Adapter | `KeyedPoolAdapters#UniswapV4Adapter` | [`0x13a398Cb26CeC566B81A620C589a0CA0Ce5cc775`](https://robinhoodchain.blockscout.com/address/0x13a398Cb26CeC566B81A620C589a0CA0Ce5cc775) |
 
-- `Outbidfun#OutbidMarket` is the first outbid market. It is frozen, and its board was carried
-  over to `OutbidMarketV2#OutbidMarket` on 28 September 2026.
-- `OutbidMarketV2#OutbidMarket` was deployed from this source, apart from license headers.
+- `OutbidMarketV3#Proxy` is the outbid market since 30 September 2026: this source's
+  `OutbidMarketProxy.sol` (ERC-1967) in front of `OutbidMarketV3#Implementation`
+  (`OutbidMarket.sol`, UUPS), so its address stays through every upgrade. It takes bids on coins
+  launched on PONS as ad spots, checked against `OutbidMarketV3#PonsTokenRegistry`.
+- `Outbidfun#OutbidMarket` (27 September 2026) and `OutbidMarketV2#OutbidMarket` (28 September
+  2026) are the markets before it. Both are frozen, each one's board carried over to the next,
+  and both were deployed from earlier revisions of `OutbidMarket.sol`, so their verified source
+  on the explorer is authoritative.
+- `ProtocolRegistry#ProtocolRegistry` lists the protocol's contracts by kind (`CoinFactory`,
+  `OutbidMarket`, `TradeRouter`, …), each with the block it was deployed in, for readers such as
+  DefiLlama's adapters and the subgraph. It is append-only and not upgradeable.
+- `KeyedPoolAdapters#InfinityAdapter` and `KeyedPoolAdapters#UniswapV4Adapter` are
+  `UniversalRouterAdapter.sol` in front of PancakeSwap Infinity's and Uniswap v4's Universal
+  Routers, deployed on 30 September 2026. Both executors, `TradeRouter#TradeRouter` and
+  `SwapExecutor#SwapExecutor`, list them as V3 routers.
 - `TradeRouter#TradeRouter` is this source's `SwapExecutor.sol`, deployed on 29 September 2026 as
   the trade router: every trade sent from outbidfun.lol goes through it, and it pays a 0.05% fee
   (`feeBps` 5, capped at 25 in the contract) to the `RevenueRouter`, logging each as `FeeCharged`.
@@ -73,10 +91,13 @@ Deployed from 27 September 2026, starting at block 73821560.
 | FeeEscrow | `Launchpad#FeeEscrow` | [`0x020db5b426a8E8cb30c21dEdEd9b5991E94A2A87`](https://explorer.testnet.chain.robinhood.com/address/0x020db5b426a8E8cb30c21dEdEd9b5991E94A2A87) |
 | Formula | `Launchpad#Formula` | [`0x67b2125AD581FD12E562386f9151F27f8C4142E5`](https://explorer.testnet.chain.robinhood.com/address/0x67b2125AD581FD12E562386f9151F27f8C4142E5) |
 | HolderRewards | `Launchpad#HolderRewards` | [`0x103db871e25732272f035714ebfE37dC6831Bd28`](https://explorer.testnet.chain.robinhood.com/address/0x103db871e25732272f035714ebfE37dC6831Bd28) |
+| Implementation | `OutbidMarketV3#Implementation` | [`0xd6A4e9D63c548ffB1B0663810A4422b4F09Bd314`](https://explorer.testnet.chain.robinhood.com/address/0xd6A4e9D63c548ffB1B0663810A4422b4F09Bd314) |
 | LiquidityManager | `Launchpad#LiquidityManager` | [`0xdb3b493D371103847D189cbEf6866Af3e374bfC9`](https://explorer.testnet.chain.robinhood.com/address/0xdb3b493D371103847D189cbEf6866Af3e374bfC9) |
 | LiquidityManager | `LaunchpadV2#LiquidityManager` | [`0x83DA3b5C2CE469788ef3a470bCc17699E0e20575`](https://explorer.testnet.chain.robinhood.com/address/0x83DA3b5C2CE469788ef3a470bCc17699E0e20575) |
 | OutbidBuyback | `OutbidEconomy#OutbidBuyback` | [`0x0e4ecbc6867cAAC2D15E82927EaF9754230ba15c`](https://explorer.testnet.chain.robinhood.com/address/0x0e4ecbc6867cAAC2D15E82927EaF9754230ba15c) |
 | OutbidMarket | `Outbidfun#OutbidMarket` | [`0xB2D1E7c1b9D7Aa632cD73984D3fb1526Bc5EA235`](https://explorer.testnet.chain.robinhood.com/address/0xB2D1E7c1b9D7Aa632cD73984D3fb1526Bc5EA235) |
+| PonsTokenRegistry | `OutbidMarketV3#PonsTokenRegistry` | [`0x5154db5cFD17E783E51d536667F8533fD7a6E876`](https://explorer.testnet.chain.robinhood.com/address/0x5154db5cFD17E783E51d536667F8533fD7a6E876) |
+| Proxy | `OutbidMarketV3#Proxy` | [`0xF2ef7907eD95bD44cA5E4865eE33964A3004F4E0`](https://explorer.testnet.chain.robinhood.com/address/0xF2ef7907eD95bD44cA5E4865eE33964A3004F4E0) |
 | QuoterV2 | `UniswapV3#QuoterV2` | [`0x800a27ccD1B5E7b6C5f31AF9aaaA57820aF3C84D`](https://explorer.testnet.chain.robinhood.com/address/0x800a27ccD1B5E7b6C5f31AF9aaaA57820aF3C84D) |
 | RevenueRouter | `OutbidEconomy#RevenueRouter` | [`0x5F4f566cd20A140A7902Cb4b8d77D09eB0001D92`](https://explorer.testnet.chain.robinhood.com/address/0x5F4f566cd20A140A7902Cb4b8d77D09eB0001D92) |
 | SwapRouter | `UniswapV3#SwapRouter` | [`0xd49c70e5e6d80105A6B816ccC0b7Ab59A133F07A`](https://explorer.testnet.chain.robinhood.com/address/0xd49c70e5e6d80105A6B816ccC0b7Ab59A133F07A) |
@@ -86,6 +107,7 @@ Deployed from 27 September 2026, starting at block 73821560.
 | UniswapV3Factory | `UniswapV3#UniswapV3Factory` | [`0x6FfCE4fE24b35Ba8c765e3441331300d22934F8b`](https://explorer.testnet.chain.robinhood.com/address/0x6FfCE4fE24b35Ba8c765e3441331300d22934F8b) |
 
 - The launchpad and economy contracts match this source, apart from license headers.
-- The testnet's `OutbidMarket` predates `bidVia` and the `SwapExecutor`, which is not deployed there.
+- `OutbidMarketV3#Proxy` is the testnet's market, as on mainnet. The first `OutbidMarket`, which
+  predates `bidVia` and the `SwapExecutor` (not deployed there), is frozen, its board carried over.
 - `TradeRouter#TradeRouter` is this source's `SwapExecutor.sol`, the testnet's trade router, with the
   same 0.05% fee as mainnet's.

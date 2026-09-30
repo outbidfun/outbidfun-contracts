@@ -8,12 +8,14 @@
  * EXECUTOR_DEPLOYMENT and EXECUTOR_KEY name another: the trade router is
  * `EXECUTOR_DEPLOYMENT=chain-<id>-trade-router EXECUTOR_KEY=TradeRouter#TradeRouter`.
  *
- * Every router is checked on chain first: it must have code, and wrap into the same wrapped ether
- * the executor does (`WETH9()`), or it is left out. A router already listed as asked is left as it
+ * A venue names its router by address, or by `deployment` and `key` in an Ignition record — the
+ * platform's own adapters (`KeyedPoolAdapters`), left out until that record exists. Every router is
+ * checked on chain first: it must have code, and wrap into the same wrapped ether the executor
+ * does (`WETH9()`), or it is left out. A router already listed as asked is left as it
  * is. The executor is the one in this network's deployment record, and the caller must own it.
  * Without EXECUTE it only prints the plan.
  */
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import hre from 'hardhat';
 import { getAddress, parseAbi, type Address } from 'viem';
@@ -42,9 +44,20 @@ const deployed = JSON.parse(readFileSync(join(root, 'deployments', deployment, '
 >;
 const executor = deployed[key];
 if (!executor) throw new Error(`No ${key} in the ${deployment} deployment.`);
-const { venues } = JSON.parse(readFileSync(join(root, 'config', `executor-venues-${chainId}.json`), 'utf8')) as {
-  venues: { name: string; router: Address; venue: number }[];
+const { venues: listed } = JSON.parse(readFileSync(join(root, 'config', `executor-venues-${chainId}.json`), 'utf8')) as {
+  venues: ({ name: string; venue: number } & ({ router: Address } | { deployment: string; key: string }))[];
 };
+/** Each venue's router: its address, or where its Ignition record says it is; none before that record exists. */
+const venues = listed.flatMap((entry) => {
+  if ('router' in entry) return [{ name: entry.name, router: entry.router, venue: entry.venue }];
+  const file = join(root, 'deployments', entry.deployment, 'deployed_addresses.json');
+  const router = existsSync(file) ? (JSON.parse(readFileSync(file, 'utf8')) as Record<string, Address>)[entry.key] : undefined;
+  if (!router) {
+    console.log(`  ${entry.name.padEnd(12)} skipped: ${entry.key} is not deployed (${entry.deployment})`);
+    return [];
+  }
+  return [{ name: entry.name, router, venue: entry.venue }];
+});
 
 const owner = getAddress(await client.readContract({ address: executor, abi: swapExecutorAbi, functionName: 'owner' }));
 const weth = getAddress(await client.readContract({ address: executor, abi: swapExecutorAbi, functionName: 'weth' }));

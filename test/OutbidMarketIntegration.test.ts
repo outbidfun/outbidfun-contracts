@@ -11,6 +11,7 @@ import {
   sqrtPriceX96For,
   usd,
 } from './helpers/launchpad';
+import { deployMarket } from './helpers/market';
 
 const MIN_BID = parseEther('1');
 const INCREMENT = parseEther('2');
@@ -30,7 +31,7 @@ async function deployFixture() {
 
   const vault = await hre.viem.deployContract('OutbidBuyback', [owner.account.address, weth.address, v3Factory.address, 3_600n]);
   const poolManager = await hre.viem.deployContract('MockPoolManagerV4', []);
-  const market = await hre.viem.deployContract('OutbidMarket', [
+  const market = await deployMarket([
     owner.account.address,
     dollar.address,
     weth.address,
@@ -585,6 +586,29 @@ describe('OutbidMarket with the real launchpad', () => {
       expect(getAddress(executed.args.keeper!)).to.equal(getAddress(market.address));
       expect(executed.args.amountIn).to.equal(usd(200));
       expect(await dollar.read.balanceOf([market.address])).to.equal(0n);
+    });
+
+    it('buys $OUTBID with 80% of a bid on a PONS coin and burns it, the treasury taking the other 20%', async () => {
+      const { market, owner, bob, dollar, vault, treasury, outbid, publicClient } = await loadFixture(liveFixture);
+      const factory = await hre.viem.deployContract('MockPonsLaunchFactory', []);
+      const registry = await hre.viem.deployContract('PonsTokenRegistry', [owner.account.address, [{ factory: factory.address, kind: 0 }]]);
+      await market.write.setExternalRegistry([registry.address]);
+      const cwf = await hre.viem.deployContract('MockERC20', ['CWF', 'CWF', 18, parseEther('1000000000')]);
+      await factory.write.setLaunched([cwf.address, true]);
+      const supplyBefore = await outbid.read.totalSupply();
+      const treasuryBefore = await dollar.read.balanceOf([treasury.address]);
+      const vaultBefore = await dollar.read.balanceOf([vault.address]);
+
+      // 80% of 1,000 USDG is 800 USDG, which the curve sells at 1,000 OUTBID each.
+      const expected = parseEther('800000');
+      const hash = await market.write.bid([cwf.address, usd(1_000), 0n, expected], { account: bob.account });
+      await publicClient.waitForTransactionReceipt({ hash });
+
+      expect(supplyBefore - (await outbid.read.totalSupply())).to.equal(expected);
+      expect((await dollar.read.balanceOf([treasury.address])) - treasuryBefore).to.equal(usd(200));
+      expect(await dollar.read.balanceOf([vault.address])).to.equal(vaultBefore);
+      expect(await dollar.read.balanceOf([market.address])).to.equal(0n);
+      expect(await cwf.read.balanceOf([DEAD])).to.equal(0n);
     });
 
     it('buys only at the bidder’s minimum: without one, or short of it, the 20% waits in the vault and the bid lands', async () => {

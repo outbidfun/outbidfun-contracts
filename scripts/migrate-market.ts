@@ -1,6 +1,10 @@
 /**
- * Moves the Outbid board from the first market (`Outbidfun#OutbidMarket`) to its replacement
- * (`OutbidMarketV2#OutbidMarket`), both from this network's deployment record.
+ * Moves the Outbid board from one market to the one replacing it, each named by its deployment
+ * record and Ignition future as `<record>:<future>`: by default the first market
+ * (`chain-<id>:Outbidfun#OutbidMarket`) to V2 (`chain-<id>:OutbidMarketV2#OutbidMarket`), and with
+ * OLD_MARKET and NEW_MARKET any other pair — V2 to the market behind its proxy:
+ *
+ *   OLD_MARKET=chain-4663:OutbidMarketV2#OutbidMarket NEW_MARKET=chain-4663-outbid-market-v3:OutbidMarketV3#Market
  *
  *   pnpm --filter @outbidfun/protocol migrate-market --network robinhood                      # plan only
  *   EXECUTE=1 pnpm --filter @outbidfun/protocol migrate-market --network robinhood            # settings + board
@@ -66,13 +70,18 @@ if (!wallet) throw new Error('DEPLOYER_PRIVATE_KEY is not set in packages/protoc
 const execute = process.env.EXECUTE === '1';
 const freeze = execute && process.env.FREEZE === '1';
 
-const deployed = JSON.parse(
-  readFileSync(join(import.meta.dirname, '..', 'ignition', 'deployments', `chain-${chainId}`, 'deployed_addresses.json'), 'utf8')
-) as Record<string, Address>;
-const OLD = deployed['Outbidfun#OutbidMarket'];
-const NEW = deployed['OutbidMarketV2#OutbidMarket'];
-if (!OLD || !NEW) throw new Error(`chain-${chainId} needs both Outbidfun#OutbidMarket and OutbidMarketV2#OutbidMarket.`);
-console.log(`First market ${OLD}\nNew market   ${NEW}\nCaller       ${wallet.account.address}${execute ? '' : '   (plan only: set EXECUTE=1 to send)'}\n`);
+/** A market's address from `<record>:<future>`, read from that deployment record. */
+function marketAt(name: string): Address {
+  const [record, future] = name.split(':');
+  if (!record || !future) throw new Error(`${name} is not <record>:<future>.`);
+  const file = join(import.meta.dirname, '..', 'ignition', 'deployments', record, 'deployed_addresses.json');
+  const address = (JSON.parse(readFileSync(file, 'utf8')) as Record<string, Address>)[future];
+  if (!address) throw new Error(`${record} has no ${future}.`);
+  return getAddress(address);
+}
+const OLD = marketAt(process.env.OLD_MARKET || `chain-${chainId}:Outbidfun#OutbidMarket`);
+const NEW = marketAt(process.env.NEW_MARKET || `chain-${chainId}:OutbidMarketV2#OutbidMarket`);
+console.log(`Old market   ${OLD}\nNew market   ${NEW}\nCaller       ${wallet.account.address}${execute ? '' : '   (plan only: set EXECUTE=1 to send)'}\n`);
 
 const read = <T>(address: Address, functionName: string, args: readonly unknown[] = []) =>
   client.readContract({ address, abi: marketAbi, functionName: functionName as never, args: args as never }) as Promise<T>;

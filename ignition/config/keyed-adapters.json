@@ -1,0 +1,7 @@
+{
+  "KeyedPoolAdapters": {
+    "weth": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+    "infinityRouter": "0x57fc55F719DF19B4b90A03F9D78E1177D002E504",
+    "uniswapV4Router": "0x204FAca1764B154221e35c0d20aBb3c525710498"
+  }
+}

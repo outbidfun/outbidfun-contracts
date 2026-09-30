@@ -1,0 +1,17 @@
+{
+  "note": "What ProtocolRegistry lists on Robinhood Chain mainnet, by kind, each contract with the block its deployment landed in (read from the Ignition journals), the first deployed first so the current one of each kind is last. scripts/register-contracts.ts registers whatever of this is not registered yet. An entry is an address, or `deployment` and `key` naming it in an Ignition record. Every contract deployed after the registry is registered here too, the same way, before anything reads it.",
+  "entries": [
+    { "kind": "CoinFactory", "name": "first launchpad", "address": "0xDadC43dbf60eA5d4598C39500Ede46De6A14c0d0", "fromBlock": 73822050 },
+    { "kind": "CoinFactory", "name": "constant-product launchpad", "address": "0xDD0e33a1d5452275E563020F58fC989f26B74CF6", "fromBlock": 74842311 },
+    { "kind": "CoinListingManager", "name": "first launchpad", "address": "0xcF4EEc2a27ff46f1dB10Ef6ce3a65704EF5997E4", "fromBlock": 73821972 },
+    { "kind": "CoinListingManager", "name": "constant-product launchpad", "address": "0xE15E852e3D16939719001D04f5e4d930C1F0DF26", "fromBlock": 74842206 },
+    { "kind": "OutbidMarket", "name": "first market, frozen", "address": "0x1Eaca99186F58A258B08fd7A25524A20c31def63", "fromBlock": 73821848 },
+    { "kind": "OutbidMarket", "name": "second market (bidVia), frozen", "address": "0xad7ca6bf8c0ab7793eBEC811Da5F54304383669A", "fromBlock": 74440085 },
+    { "kind": "OutbidMarket", "name": "the market's proxy", "address": "0x6D11a610838CBd91c44186D393dEe3f5AA11Ad4C", "fromBlock": 75845277 },
+    { "kind": "TradeRouter", "name": "trade router (0.05% fee)", "address": "0x5cFE31511A01161136171309881a6820E6a647f7", "fromBlock": 75757709 },
+    { "kind": "RevenueRouter", "name": "revenue router", "address": "0xeEc171B409788644acBf1c50B825Cc6d9682D9b7", "fromBlock": 73823152 },
+    { "kind": "OutbidBuyback", "name": "$OUTBID buyback vault", "address": "0x9FBb9614bA47F2FD7ECFaa16880B535034a4eEF5", "fromBlock": 73823070 },
+    { "kind": "Treasury", "name": "treasury", "address": "0xE693C039cc91F8dbe64586245565388e2e44C0A4", "fromBlock": 73821726 },
+    { "kind": "FeeEscrow", "name": "creator fee escrow", "address": "0x836a770fB5f88E19282D2Dc7342d81b2B6fA6178", "fromBlock": 73821601 }
+  ]
+}

@@ -16,3 +16,5 @@ export { uniswapV3PoolAbi } from './UniswapV3Pool';
 export { swapRouterAbi } from './SwapRouter';
 export { quoterV2Abi } from './QuoterV2';
 export { swapExecutorAbi } from './SwapExecutor';
+export { universalRouterAdapterAbi } from './UniversalRouterAdapter';
+export { protocolRegistryAbi } from './ProtocolRegistry';

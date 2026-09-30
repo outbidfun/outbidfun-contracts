@@ -1,8 +1,8 @@
 /**
  * Hands every contract the deployer owns to a new owner — a multisig, such as a Safe — on one
  * network, from that network's Ignition deployment records: `chain-<id>` (the first launchpad,
- * the markets, the economy, the swap executor) and `chain-<id>-launchpad-v2` (the launchpad on the
- * constant-product curve), where it exists.
+ * the markets, the economy, the swap executor), `chain-<id>-launchpad-v2` (the launchpad on the
+ * constant-product curve) and `chain-<id>-registry` (the protocol registry), where each exists.
  *
  *   NEW_OWNER=0x… pnpm --filter @outbidfun/protocol transfer-ownership --network robinhood
  *   NEW_OWNER=0x… EXECUTE=1 pnpm --filter @outbidfun/protocol transfer-ownership --network robinhood
@@ -36,6 +36,7 @@ const OWNED = [
   'OutbidEconomy#OutbidBuyback',
   'OutbidEconomy#RevenueRouter',
   'SwapExecutor#SwapExecutor',
+  'ProtocolRegistry#ProtocolRegistry',
 ] as const;
 
 const ownableAbi = parseAbi([
@@ -54,7 +55,7 @@ const execute = process.env.EXECUTE === '1';
 /** Every record this network has, merged: a later record's futures are named apart from the first's. */
 const deployed = Object.assign(
   {},
-  ...[`chain-${chainId}`, `chain-${chainId}-launchpad-v2`].map((id) => {
+  ...[`chain-${chainId}`, `chain-${chainId}-launchpad-v2`, `chain-${chainId}-registry`].map((id) => {
     const file = join(import.meta.dirname, '..', 'ignition', 'deployments', id, 'deployed_addresses.json');
     return existsSync(file) ? (JSON.parse(readFileSync(file, 'utf8')) as Record<string, Address>) : {};
   })

@@ -27,6 +27,8 @@ const contracts = [
   ['SwapRouter', 'uniswap-v3/periphery/SwapRouter.sol'],
   ['QuoterV2', 'uniswap-v3/periphery/lens/QuoterV2.sol'],
   ['SwapExecutor', 'SwapExecutor.sol'],
+  ['UniversalRouterAdapter', 'UniversalRouterAdapter.sol'],
+  ['ProtocolRegistry', 'ProtocolRegistry.sol'],
 ];
 
 mkdirSync(join(packageRoot, 'abi'), { recursive: true });

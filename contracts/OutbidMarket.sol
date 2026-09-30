@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -59,7 +60,21 @@ interface IOutbidBuybackVault {
 ///         it brought is checked against the bidder's minimum, and that is bid. Rank is `totalBid` descending, the USDG bid stated at eighteen decimals; ties go to
 ///         the earlier position. Nothing is refunded, and a coin's bid never decreases when
 ///         another coin outbids it.
-contract OutbidMarket is Ownable, ReentrancyGuard, IUnlockCallbackV4 {
+///
+///         A bid is any amount from `minBid` up: it adds to the coin's total and ranks where that
+///         total puts it. Only `outbid`, and a `takeTop` bid, insist on the top spot.
+///
+///         A coin launched elsewhere — on PONS, by `externalRegistry` — can be bid on as an ad spot
+///         on the board. None of its bid goes into that coin: `externalBuybackBps` (80%) goes to
+///         the $OUTBID buyback, as the buyback share does above, and `externalTreasuryBps` (20%)
+///         to the treasury.
+///
+///         The market sits behind an ERC-1967 proxy (UUPS): one address for the board and its
+///         history, whatever the code behind it. Only the owner can upgrade it
+///         (`_authorizeUpgrade`). State is laid out in order, with `__gap` kept at the end for
+///         what a later version adds; OpenZeppelin's own state is in its ERC-7201 namespaces,
+///         and its reentrancy guard keeps its flag in one too.
+contract OutbidMarket is OwnableUpgradeable, UUPSUpgradeable, ReentrancyGuard, IUnlockCallbackV4 {
     using SafeERC20 for IERC20;
     using BalanceDeltaV4 for int256;
 
@@ -110,14 +125,14 @@ contract OutbidMarket is Ownable, ReentrancyGuard, IUnlockCallbackV4 {
     /// @notice Most pools a route passes through on its way to USDG.
     uint256 public constant MAX_ROUTE_HOPS = 3;
 
-    /// @notice What every bid is paid in, and what a coin must be priced in to be bid on.
-    IERC20 public immutable usdg;
+    /// @notice What every bid is paid in. Set once, at initialization.
+    IERC20 public usdg;
     /// @notice Wrapped ether: paid in, it is unwrapped and swapped as ether.
-    address public immutable weth;
+    address public weth;
     /// @notice The Uniswap V4 PoolManager other assets are swapped to USDG through.
-    IPoolManagerV4 public immutable poolManager;
+    IPoolManagerV4 public poolManager;
     /// @dev 10^(18 − USDG's decimals): a USDG amount times this is the board's unit.
-    uint256 private immutable _scale;
+    uint256 private _scale;
 
     /// @notice The launchpad: only coins it launched can be bid on.
     ITokenRegistry public registry;
@@ -143,7 +158,7 @@ contract OutbidMarket is Ownable, ReentrancyGuard, IUnlockCallbackV4 {
     /// @notice True until the first bid lands, or the owner closes it: while open, the owner may
     ///         carry the board over from the market this one replaces (`migrate`). Once closed it
     ///         never opens again, so no position can be written except by a bid.
-    bool public migrationOpen = true;
+    bool public migrationOpen;
 
     address[] private _tokens;
     mapping(address token => Position) private _positions;
@@ -157,6 +172,15 @@ contract OutbidMarket is Ownable, ReentrancyGuard, IUnlockCallbackV4 {
     ///         USDG, and a burn share to the asset a coin is priced in. It calls only routers its
     ///         owner listed; unset, `bidVia` takes USDG for coins priced in USDG only.
     ISwapExecutor public executor;
+    /// @notice Coins launched elsewhere that may be bid on as an ad spot (`PonsTokenRegistry`):
+    ///         unset, only the launchpad's own.
+    ITokenRegistry public externalRegistry;
+    /// @notice How an external coin's bid is split, in basis points; the two add up to 10,000.
+    uint16 public externalBuybackBps;
+    uint16 public externalTreasuryBps;
+
+    /// @dev Room for what a later version adds, so its state lands after all of this.
+    uint256[45] private __gap;
 
     event BidPlaced(
         address indexed token,
@@ -194,6 +218,8 @@ contract OutbidMarket is Ownable, ReentrancyGuard, IUnlockCallbackV4 {
     /// @notice A position carried over from the market this one replaces, as it stood there.
     event PositionMigrated(address indexed token, uint256 totalBid, uint64 firstBidAt, uint64 lastBidAt, address lastBidder);
     event MigrationEnded();
+    event ExternalRegistryUpdated(address indexed registry);
+    event ExternalSplitUpdated(uint16 buybackBps, uint16 treasuryBps);
     /// @notice A burn share swapped from USDG to `asset`, the coin's own, before buying the coin.
     event BurnRouted(address indexed token, address indexed asset, uint256 usdgIn, uint256 assetOut);
 
@@ -218,8 +244,18 @@ contract OutbidMarket is Ownable, ReentrancyGuard, IUnlockCallbackV4 {
     error ShortTransfer(address asset);
     error MigrationOver();
     error BadMigration();
+    error NotBurnable(address token);
 
-    constructor(
+    /// @dev The implementation is never used on its own: only through a proxy, initialized there.
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
+    /// @notice Sets the market up behind its proxy, once: the deployer's arguments, as the
+    ///         constructor took them before the market was upgradeable. External coins start split
+    ///         80 / 20 and unlisted until `setExternalRegistry`.
+    function initialize(
         address initialOwner,
         IERC20Metadata usdg_,
         address weth_,
@@ -228,7 +264,8 @@ contract OutbidMarket is Ownable, ReentrancyGuard, IUnlockCallbackV4 {
         address treasury_,
         uint256 minBid_,
         uint256 outbidIncrement_
-    ) Ownable(initialOwner) {
+    ) external initializer {
+        __Ownable_init(initialOwner);
         if (address(usdg_) == address(0) || weth_ == address(0)) revert ZeroAddress();
         uint8 decimals = usdg_.decimals();
         require(decimals <= 18, "Too many decimals");
@@ -239,9 +276,14 @@ contract OutbidMarket is Ownable, ReentrancyGuard, IUnlockCallbackV4 {
         _scale = 10 ** (18 - decimals);
         _setDestinations(buyback_, treasury_);
         _setSplit(7_500, 2_000, 500);
+        _setExternalSplit(8_000, 2_000);
         _setMinBid(minBid_);
         _setOutbidIncrement(outbidIncrement_);
+        migrationOpen = true;
     }
+
+    /// @dev Only the owner replaces the code behind the proxy.
+    function _authorizeUpgrade(address) internal override onlyOwner {}
 
     /// @notice Only wrapped ether unwrapping on the way to a swap sends ether here, and the executor
     ///         returning what a payment's swap left unspent.
@@ -393,8 +435,8 @@ contract OutbidMarket is Ownable, ReentrancyGuard, IUnlockCallbackV4 {
         nonReentrant
         returns (uint256 coinsBurned, uint256 outbidBurned)
     {
-        _check(token);
-        return _bid(token, _pullUsdg(amount), minCoinsOut, minOutbidOut, false, new BurnLeg[](0));
+        bool external_ = _check(token);
+        return _bid(token, external_, _pullUsdg(amount), minCoinsOut, minOutbidOut, false, new BurnLeg[](0));
     }
 
     /// @notice Bid that must take, or for the current holder defend, the top spot at execution
@@ -405,8 +447,8 @@ contract OutbidMarket is Ownable, ReentrancyGuard, IUnlockCallbackV4 {
         nonReentrant
         returns (uint256 coinsBurned, uint256 outbidBurned)
     {
-        _check(token);
-        return _bid(token, _pullUsdg(amount), minCoinsOut, minOutbidOut, true, new BurnLeg[](0));
+        bool external_ = _check(token);
+        return _bid(token, external_, _pullUsdg(amount), minCoinsOut, minOutbidOut, true, new BurnLeg[](0));
     }
 
     /// @notice Bid with something other than USDG: ether (the zero address, sent as value),
@@ -423,9 +465,9 @@ contract OutbidMarket is Ownable, ReentrancyGuard, IUnlockCallbackV4 {
         uint256 minOutbidOut,
         bool takeTop
     ) external payable nonReentrant returns (uint256 coinsBurned, uint256 outbidBurned) {
-        _check(token);
+        bool external_ = _check(token);
         uint256 received = _payWith(assetIn, amountIn, minUsdg);
-        return _bid(token, received, minCoinsOut, minOutbidOut, takeTop, new BurnLeg[](0));
+        return _bid(token, external_, received, minCoinsOut, minOutbidOut, takeTop, new BurnLeg[](0));
     }
 
     /// @notice Bid on any coin with anything, routed by the swap page's DEX aggregator: `payment`
@@ -442,19 +484,26 @@ contract OutbidMarket is Ownable, ReentrancyGuard, IUnlockCallbackV4 {
         uint256 minOutbidOut,
         bool takeTop
     ) external payable nonReentrant returns (uint256 coinsBurned, uint256 outbidBurned) {
-        _check(token);
+        bool external_ = _check(token);
         uint256 received = _payVia(payment);
-        return _bid(token, received, minCoinsOut, minOutbidOut, takeTop, burnRoute);
+        return _bid(token, external_, received, minCoinsOut, minOutbidOut, takeTop, burnRoute);
     }
 
     /// @dev A coin the launchpad launched.
-    function _check(address token) private view {
+    ///      Or one launched elsewhere that `externalRegistry` lists, bid on as an ad spot: then
+    ///      `external_` is true. The launchpad's own registry is asked first, so a coin both would
+    ///      claim is always the launchpad's.
+    function _check(address token) private view returns (bool external_) {
         if (token == address(0)) revert ZeroAddress();
         ITokenRegistry _registry = registry;
-        if (address(_registry) == address(0)) revert NoRegistry();
-        // An address with no code is never a coin, whatever the registry says of it, and the
-        // registry is asked nothing about it.
-        if (token.code.length == 0 || !_registry.isMemeCoinLegit(token)) revert TokenNotRegistered(token);
+        ITokenRegistry _external = externalRegistry;
+        if (address(_registry) == address(0) && address(_external) == address(0)) revert NoRegistry();
+        // An address with no code is never a coin, whatever a registry says of it, and no
+        // registry is asked anything about it.
+        if (token.code.length == 0) revert TokenNotRegistered(token);
+        if (address(_registry) != address(0) && _registry.isMemeCoinLegit(token)) return false;
+        if (address(_external) != address(0) && _external.isMemeCoinLegit(token)) return true;
+        revert TokenNotRegistered(token);
     }
 
     /// @dev Measured rather than trusted, so a transfer that takes a cut cannot rank a bid for
@@ -467,6 +516,7 @@ contract OutbidMarket is Ownable, ReentrancyGuard, IUnlockCallbackV4 {
 
     function _bid(
         address token,
+        bool external_,
         uint256 amount,
         uint256 minCoinsOut,
         uint256 minOutbidOut,
@@ -498,22 +548,33 @@ contract OutbidMarket is Ownable, ReentrancyGuard, IUnlockCallbackV4 {
             emit TopSpotChanged(token, currentTop, position.totalBid);
         }
 
-        return _settle(token, amount, minCoinsOut, minOutbidOut, burnRoute);
+        return _settle(token, external_, amount, minCoinsOut, minOutbidOut, burnRoute);
     }
 
     /// @dev Spends the burn share on the coin, burning what it buys, and the buyback share on
     ///      $OUTBID (or pays it to the vault), and pays the treasury. Rounding dust stays with the
-    ///      burn share.
+    ///      burn share. An external coin has no burn share: its bid is the buyback's and the
+    ///      treasury's alone, the dust the buyback's, and it takes no burn route.
     function _settle(
         address token,
+        bool external_,
         uint256 amount,
         uint256 minCoinsOut,
         uint256 minOutbidOut,
         BurnLeg[] memory burnRoute
     ) private returns (uint256 coinsBurned, uint256 outbidBurned) {
-        uint256 toBuyback = (amount * buybackBps) / BPS;
-        uint256 toTreasury = (amount * treasuryBps) / BPS;
-        uint256 toBurn = amount - toBuyback - toTreasury;
+        uint256 toBuyback;
+        uint256 toTreasury;
+        uint256 toBurn;
+        if (external_) {
+            if (burnRoute.length != 0) revert NotBurnable(token);
+            toTreasury = (amount * externalTreasuryBps) / BPS;
+            toBuyback = amount - toTreasury;
+        } else {
+            toBuyback = (amount * buybackBps) / BPS;
+            toTreasury = (amount * treasuryBps) / BPS;
+            toBurn = amount - toBuyback - toTreasury;
+        }
 
         uint256 burnSpent;
         if (toBurn > 0) (burnSpent, coinsBurned) = _buyAndBurn(token, toBurn, burnRoute);
@@ -906,6 +967,18 @@ contract OutbidMarket is Ownable, ReentrancyGuard, IUnlockCallbackV4 {
         _setSplit(burnBps_, buybackBps_, treasuryBps_);
     }
 
+    /// @notice Set to the registry of coins launched elsewhere that may be bid on
+    ///         (`PonsTokenRegistry`); the zero address takes the launchpad's own coins only.
+    function setExternalRegistry(ITokenRegistry registry_) external onlyOwner {
+        externalRegistry = registry_;
+        emit ExternalRegistryUpdated(address(registry_));
+    }
+
+    /// @notice How an external coin's bid is split between the $OUTBID buyback and the treasury.
+    function setExternalSplit(uint16 buybackBps_, uint16 treasuryBps_) external onlyOwner {
+        _setExternalSplit(buybackBps_, treasuryBps_);
+    }
+
     /// @notice Name the V4 pools `assetIn` is swapped to USDG through, in order: one pool pairing
     ///         it with USDG, or up to `MAX_ROUTE_HOPS` stepping to USDG through other currencies —
     ///         a share to ether, say, then ether to USDG. Ether is the zero address, paid in or on
@@ -959,6 +1032,14 @@ contract OutbidMarket is Ownable, ReentrancyGuard, IUnlockCallbackV4 {
         buybackBps = buybackBps_;
         treasuryBps = treasuryBps_;
         emit SplitUpdated(burnBps_, buybackBps_, treasuryBps_);
+    }
+
+    function _setExternalSplit(uint16 buybackBps_, uint16 treasuryBps_) private {
+        uint256 total = uint256(buybackBps_) + treasuryBps_;
+        if (total != BPS) revert InvalidSplit(total);
+        externalBuybackBps = buybackBps_;
+        externalTreasuryBps = treasuryBps_;
+        emit ExternalSplitUpdated(buybackBps_, treasuryBps_);
     }
 
     function _setMinBid(uint256 minBid_) private {

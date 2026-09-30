@@ -16,7 +16,7 @@
  * environment lines to paste into apps/web/.env.
  */
 import hre from 'hardhat';
-import { formatUnits, parseEther, parseUnits, zeroAddress, type Address } from 'viem';
+import { encodeFunctionData, formatUnits, parseEther, parseUnits, zeroAddress, type Address } from 'viem';
 
 /** The board's minimum bid and step, in dollars at eighteen decimals. */
 const MIN_BID = parseEther('1');
@@ -133,16 +133,17 @@ async function main() {
   // Bids are paid in USDG. A local node has no Uniswap V4 PoolManager, so the market is given
   // none and takes USDG only; paying with ether needs the real chain. The treasury stands in for
   // the buyback vault until the vault exists, below.
-  const auction = await hre.viem.deployContract('OutbidMarket', [
-    owner.account.address,
-    tokens.get('USDG')!.address,
-    weth.address,
-    zeroAddress,
-    treasury.address,
-    treasury.address,
-    MIN_BID,
-    INCREMENT,
+  // Behind its proxy, initialized as the proxy is deployed, as on the real chains.
+  const implementation = await hre.viem.deployContract('OutbidMarket', []);
+  const proxy = await hre.viem.deployContract('OutbidMarketProxy', [
+    implementation.address,
+    encodeFunctionData({
+      abi: implementation.abi,
+      functionName: 'initialize',
+      args: [owner.account.address, tokens.get('USDG')!.address, weth.address, zeroAddress, treasury.address, treasury.address, MIN_BID, INCREMENT],
+    }),
   ]);
+  const auction = await hre.viem.getContractAt('OutbidMarket', proxy.address);
   await auction.write.setRegistry([coinFactory.address]);
   for (const asset of ASSETS) {
     const token = tokens.get(asset.key)!;

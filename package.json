@@ -37,16 +37,23 @@
     "executor:mainnet": "hardhat ignition deploy ignition/modules/SwapExecutor.ts --network robinhood --parameters ignition/config/base.json",
     "executor:testnet": "hardhat ignition deploy ignition/modules/SwapExecutor.ts --network robinhoodTestnet --parameters ignition/config/robinhood-testnet.json",
     "executor-venues": "hardhat run scripts/executor-venues.ts",
+    "register-contracts": "hardhat run scripts/register-contracts.ts",
     "market:mainnet": "hardhat ignition deploy ignition/modules/OutbidMarketV2.ts --network robinhood --parameters ignition/config/base.json",
     "migrate-market": "hardhat run scripts/migrate-market.ts",
     "launchpad-v2:mainnet": "hardhat ignition deploy ignition/modules/LaunchpadV2.ts --network robinhood --parameters ignition/config/launchpad-v2.json --deployment-id chain-4663-launchpad-v2",
     "launchpad-v2:testnet": "hardhat ignition deploy ignition/modules/LaunchpadV2.ts --network robinhoodTestnet --parameters ignition/config/launchpad-v2-testnet.json --deployment-id chain-46630-launchpad-v2",
     "migrate-launchpad": "hardhat run scripts/migrate-launchpad.ts",
     "trade-router:mainnet": "hardhat ignition deploy ignition/modules/TradeRouter.ts --network robinhood --parameters ignition/config/trade-router.json --deployment-id chain-4663-trade-router",
-    "trade-router:testnet": "hardhat ignition deploy ignition/modules/TradeRouter.ts --network robinhoodTestnet --parameters ignition/config/trade-router-testnet.json --deployment-id chain-46630-trade-router"
+    "trade-router:testnet": "hardhat ignition deploy ignition/modules/TradeRouter.ts --network robinhoodTestnet --parameters ignition/config/trade-router-testnet.json --deployment-id chain-46630-trade-router",
+    "outbid-market-v3:mainnet": "hardhat ignition deploy ignition/modules/OutbidMarketV3.ts --network robinhood --parameters ignition/config/outbid-market-v3.json --deployment-id chain-4663-outbid-market-v3",
+    "outbid-market-v3:testnet": "hardhat ignition deploy ignition/modules/OutbidMarketV3.ts --network robinhoodTestnet --parameters ignition/config/outbid-market-v3-testnet.json --deployment-id chain-46630-outbid-market-v3",
+    "registry:mainnet": "hardhat ignition deploy ignition/modules/ProtocolRegistry.ts --network robinhood --deployment-id chain-4663-registry",
+    "registry:testnet": "hardhat ignition deploy ignition/modules/ProtocolRegistry.ts --network robinhoodTestnet --deployment-id chain-46630-registry",
+    "keyed-adapters:mainnet": "hardhat ignition deploy ignition/modules/KeyedPoolAdapters.ts --network robinhood --parameters ignition/config/keyed-adapters.json --deployment-id chain-4663-keyed-adapters"
   },
   "dependencies": {
-    "@openzeppelin/contracts": "^5.0.0"
+    "@openzeppelin/contracts": "^5.0.0",
+    "@openzeppelin/contracts-upgradeable": "5.6.1"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-ignition": "^0.15.0",

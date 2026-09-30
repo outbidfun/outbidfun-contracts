@@ -3,6 +3,7 @@ import { expect } from 'chai';
 import hre from 'hardhat';
 import { parseEther, zeroAddress, type Address } from 'viem';
 import { POOL_FEE, USD_CAP, WETH_CAP, deployLaunchpad, usd } from './helpers/launchpad';
+import { deployMarket } from './helpers/market';
 
 /**
  * The move to a second launchpad beside the first (ignition/modules/LaunchpadV2.ts and
@@ -39,7 +40,7 @@ describe('Launchpad migration', () => {
       if (newCap !== cap || !newEnabled) await newFactory.write.setQuoteAsset([asset, cap, enabled]);
       await coinFactory.write.setQuoteAsset([asset, cap, false]);
     }
-    const market = await hre.viem.deployContract('OutbidMarket', [
+    const market = await deployMarket([
       owner.account.address, dollar.address, weth.address, zeroAddress, treasury.address, treasury.address, parseEther('1'), parseEther('2'),
     ]);
     await market.write.setRegistry([union.address]);

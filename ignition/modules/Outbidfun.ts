@@ -35,7 +35,22 @@ const OutbidfunModule = buildModule('Outbidfun', (m) => {
   const outbidIncrement = m.getParameter('outbidIncrement', parseEther('5'));
 
   const treasury = m.contract('Treasury', [owner]);
-  const auction = m.contract('OutbidMarket', [owner, usdg, weth, poolManager, treasury, treasury, minBid, outbidIncrement]);
+  // The market lives behind its proxy, which initializes it as it is deployed (OutbidMarketV3.ts
+  // says why). `Outbidfun#OutbidMarket` is the proxy, read as the market. The mainnet and testnet
+  // records predate this: their `Outbidfun#OutbidMarket` is the first market, deployed directly.
+  const implementation = m.contract('OutbidMarket', [], { id: 'OutbidMarketImplementation' });
+  const initialize = m.encodeFunctionCall(implementation, 'initialize', [
+    owner,
+    usdg,
+    weth,
+    poolManager,
+    treasury,
+    treasury,
+    minBid,
+    outbidIncrement,
+  ]);
+  const proxy = m.contract('OutbidMarketProxy', [implementation, initialize]);
+  const auction = m.contractAt('OutbidMarket', proxy, { id: 'OutbidMarket' });
 
   return { treasury, auction };
 });

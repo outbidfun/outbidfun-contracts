@@ -3,6 +3,7 @@ import { expect } from 'chai';
 import hre from 'hardhat';
 import { parseEther, zeroAddress } from 'viem';
 import { deployLaunchpad } from './helpers/launchpad';
+import { deployMarket } from './helpers/market';
 
 /**
  * The outbid market holds one registry, and asks it one question. When a new CoinFactory
@@ -83,7 +84,7 @@ describe('TokenRegistryUnion', () => {
     await publicClient.waitForTransactionReceipt({ hash });
     const newDollar = await second.read.getAddress(['NEWD']);
 
-    const market = await hre.viem.deployContract('OutbidMarket', [
+    const market = await deployMarket([
       owner.account.address, dollar.address, weth.address, zeroAddress, treasury.address, treasury.address, parseEther('1'), parseEther('2'),
     ]);
     await market.write.setRegistry([union.address]);

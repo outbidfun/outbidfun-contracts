@@ -2,6 +2,7 @@ import { loadFixture } from '@nomicfoundation/hardhat-toolbox-viem/network-helpe
 import { expect } from 'chai';
 import hre from 'hardhat';
 import { getAddress, parseEther, parseUnits, zeroAddress, type Address } from 'viem';
+import { deployMarket } from './helpers/market';
 
 /** USDG has six decimals; the board states bids at eighteen. */
 const usdg = (amount: number | string) => parseUnits(String(amount), 6);
@@ -29,7 +30,7 @@ async function deployFixture() {
   const treasury = await hre.viem.deployContract('Treasury', [owner!.account.address]);
   const registry = await hre.viem.deployContract('MockTokenRegistry', []);
 
-  const market = await hre.viem.deployContract('OutbidMarket', [
+  const market = await deployMarket([
     owner!.account.address,
     dollar.address,
     weth.address,
@@ -137,11 +138,11 @@ describe('OutbidMarket', () => {
           MIN_BID,
           overrides.step ?? INCREMENT,
         ] as const;
-      await expect(hre.viem.deployContract('OutbidMarket', args({ usdg: zeroAddress }) as never)).to.be.rejected;
-      await expect(hre.viem.deployContract('OutbidMarket', args({ weth: zeroAddress }) as never)).to.be.rejectedWith('ZeroAddress');
-      await expect(hre.viem.deployContract('OutbidMarket', args({ buyback: zeroAddress }) as never)).to.be.rejectedWith('ZeroAddress');
-      await expect(hre.viem.deployContract('OutbidMarket', args({ treasury: zeroAddress }) as never)).to.be.rejectedWith('ZeroAddress');
-      await expect(hre.viem.deployContract('OutbidMarket', args({ step: 0n }) as never)).to.be.rejectedWith('InvalidIncrement');
+      await expect(deployMarket(args({ usdg: zeroAddress }) as never)).to.be.rejected;
+      await expect(deployMarket(args({ weth: zeroAddress }) as never)).to.be.rejectedWith('ZeroAddress');
+      await expect(deployMarket(args({ buyback: zeroAddress }) as never)).to.be.rejectedWith('ZeroAddress');
+      await expect(deployMarket(args({ treasury: zeroAddress }) as never)).to.be.rejectedWith('ZeroAddress');
+      await expect(deployMarket(args({ step: 0n }) as never)).to.be.rejectedWith('InvalidIncrement');
     });
   });
 
@@ -283,7 +284,7 @@ describe('OutbidMarket', () => {
       await registry.write.setLegit([wallet, true]);
       await expect(bid(wallet, alice, usdg(100))).to.be.rejectedWith('TokenNotRegistered');
 
-      const bare = await hre.viem.deployContract('OutbidMarket', [
+      const bare = await deployMarket([
         owner.account.address,
         dollar.address,
         weth.address,

@@ -1,0 +1,14 @@
+{
+  "OutbidMarketV3": {
+    "usdg": "0x836a770fB5f88E19282D2Dc7342d81b2B6fA6178",
+    "weth": "0xe7AB0F13C070632EFD76cb90F6BbFBe581b22Da2",
+    "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+    "buyback": "0x0e4ecbc6867cAAC2D15E82927EaF9754230ba15c",
+    "treasury": "0xe5d9Bb7231792591F92B6538622691E65b80cD5b",
+    "minBid": "1000000000000000000n",
+    "outbidIncrement": "5000000000000000000n",
+    "registry": "0xB61a68f49d4956ff0F7013598ac49c9D3DCBAA99",
+    "executor": "0x0000000000000000000000000000000000000000",
+    "ponsFactories": []
+  }
+}

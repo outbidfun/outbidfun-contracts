@@ -48,8 +48,13 @@ const config: HardhatUserConfig = {
       // The executor's trade carries its fee side and the fee on the way out: past the legacy
       // pipeline's sixteen stack slots in \`execute\`, which the IR pipeline allocates itself.
       'contracts/SwapExecutor.sol': { version: '0.8.24', settings: { viaIR: true, optimizer: { enabled: true, runs: 200 } } },
+      // The Universal Router adapter builds a router's commands from a path in one call: past the
+      // legacy pipeline's sixteen stack slots, which the IR pipeline allocates itself.
+      'contracts/UniversalRouterAdapter.sol': { version: '0.8.24', settings: { viaIR: true, optimizer: { enabled: true, runs: 200 } } },
       // A test router that imports the executor's router interface, and so compiles it too.
       'contracts/test/Router02Front.sol': { version: '0.8.24', settings: { viaIR: true, optimizer: { enabled: true, runs: 200 } } },
+      // The keyed-pool routers' test doubles: a swap's params decoded and repacked as a V3 path.
+      'contracts/test/KeyedPoolFronts.sol': { version: '0.8.24', settings: { viaIR: true, optimizer: { enabled: true, runs: 200 } } },
       'contracts/uniswap-v3/periphery/SwapRouter.sol': uniswapV3Periphery,
       'contracts/uniswap-v3/periphery/lens/QuoterV2.sol': uniswapV3Periphery,
     },

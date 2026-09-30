@@ -3,6 +3,7 @@ import { expect } from 'chai';
 import hre from 'hardhat';
 import { getAddress, parseEther, zeroAddress } from 'viem';
 import { POOL_FEE, USD_CAP, WETH_CAP, deployLaunchpad, poolPriceX18, usd } from './helpers/launchpad';
+import { deployMarket } from './helpers/market';
 
 const DEAD = getAddress('0x000000000000000000000000000000000000dEaD');
 const DEADLINE = 4_102_444_800n; // 2100-01-01
@@ -82,7 +83,7 @@ describe('Sixth review regressions', () => {
     it('lands a bid on such a coin: the market sweeps it, then buys on the fresh curve (AUDIT-3 H-04)', async () => {
       const { launch, owner, alice, bob, carol, weth, dollar, coinFactory, treasury, listingManager, publicClient } =
         await loadFixture(deployLaunchpad);
-      const market = await hre.viem.deployContract('OutbidMarket', [
+      const market = await deployMarket([
         owner.account.address,
         dollar.address,
         weth.address,

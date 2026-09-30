@@ -1,0 +1,19 @@
+{
+  "OutbidMarketV3": {
+    "usdg": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+    "weth": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+    "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+    "buyback": "0x9FBb9614bA47F2FD7ECFaa16880B535034a4eEF5",
+    "treasury": "0xE693C039cc91F8dbe64586245565388e2e44C0A4",
+    "minBid": "1000000000000000000n",
+    "outbidIncrement": "5000000000000000000n",
+    "registry": "0x93f3CF53EF9ca9B7FAa016c20c7FC9DD6FB75321",
+    "executor": "0x4Db20d13fB8016632164f1381317e7Cfc51C1ffF",
+    "ponsFactories": [
+      { "factory": "0xA5aAb3F0c6EeadF30Ef1D3Eb997108E976351feB", "kind": 0 },
+      { "factory": "0x0c37a24F5D23A486FA692d1500881d698B1F77a4", "kind": 0 },
+      { "factory": "0xF4fC0CD27fC8EcF17E55eE4c3f7201897dF3eb75", "kind": 0 },
+      { "factory": "0x7eD598BcEf8bd9Edd8C97A195C6d13f40801EC7e", "kind": 1 }
+    ]
+  }
+}

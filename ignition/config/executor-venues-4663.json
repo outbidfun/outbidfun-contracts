@@ -1,5 +1,5 @@
 {
-  "note": "The AMM routers the SwapExecutor on Robinhood Chain mainnet may call, and how: 1 is v3-periphery's SwapRouter shape (deadline in the params), 2 is SwapRouter02's. Each is the address the AMM itself publishes, the same as apps/web/src/constants/swapProviders.ts; scripts/executor-venues.ts checks each on chain before listing it. The platform's own routers are listed too: the first at deployment (base.json platformRouter), the constant-product launchpad's (28 September 2026) here.",
+  "note": "The AMM routers the SwapExecutor on Robinhood Chain mainnet may call, and how: 1 is v3-periphery's SwapRouter shape (deadline in the params), 2 is SwapRouter02's. PancakeSwap Infinity's and Uniswap v4's Universal Routers are reached through the platform's UniversalRouterAdapter in front of each (KeyedPoolAdapters, chain-4663-keyed-adapters), which the executor calls as a v3-periphery router, so they are named by their Ignition record and listed once it exists. Each is the address the AMM itself publishes, the same as apps/web/src/constants/swapProviders.ts; scripts/executor-venues.ts checks each on chain before listing it. The platform's own routers are listed too: the first at deployment (base.json platformRouter), the constant-product launchpad's (28 September 2026) here.",
   "venues": [
     {
       "name": "Uniswap",
@@ -10,6 +10,18 @@
       "name": "PancakeSwap",
       "router": "0x13f4EA83D0bd40E75C8222255bc855a974568Dd4",
       "venue": 2
+    },
+    {
+      "name": "PancakeSwap Infinity (adapter)",
+      "deployment": "chain-4663-keyed-adapters",
+      "key": "KeyedPoolAdapters#InfinityAdapter",
+      "venue": 1
+    },
+    {
+      "name": "Uniswap v4 (adapter)",
+      "deployment": "chain-4663-keyed-adapters",
+      "key": "KeyedPoolAdapters#UniswapV4Adapter",
+      "venue": 1
     },
     {
       "name": "Ramses",
